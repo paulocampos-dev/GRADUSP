@@ -8,10 +8,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.prototype.gradusp.ui.screens.CalendarScreen
+import com.prototype.gradusp.ui.screens.ConfigScreen
+import com.prototype.gradusp.ui.screens.NotesScreen
 
 sealed class Screen(val route: String) {
     data object Calendar : Screen("calendar_screen")
-    data object Notes : Screen("notes_screen")
+    data object Grades : Screen("grades_screen")
     data object Config : Screen("config_screen")
 }
 
@@ -28,11 +30,11 @@ fun NavGraph(
         composable(route = Screen.Calendar.route) {
             CalendarScreen(navHostController)
         }
-//        composable(route = Screen.Notes.route) {
-//            NotesScreen(navController)
-//        }
-//        composable(route = Screen.Config.route) {
-//            ConfigScreen(navController)
-//        }
+        composable(route = Screen.Grades.route) {
+            NotesScreen(navHostController)
+        }
+        composable(route = Screen.Config.route) {
+            ConfigScreen(navHostController)
+        }
     }
 }

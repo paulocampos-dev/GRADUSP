@@ -16,10 +16,11 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.prototype.gradusp.navigation.Screen
+import java.util.Locale
 
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
-    val items = listOf(Screen.Calendar, Screen.Notes, Screen.Config)
+    val items = listOf(Screen.Calendar, Screen.Grades, Screen.Config)
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route
 
@@ -30,18 +31,29 @@ fun BottomNavigationBar(navController: NavHostController) {
         items.forEach { screen ->
             NavigationBarItem(
                 selected = currentRoute == screen.route,
-                onClick = { navController.navigate(screen.route) },
+                onClick = {
+                    if (currentRoute != screen.route) {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
                 icon = {
                     Icon(
                         imageVector = when (screen) {
                             Screen.Calendar -> Icons.Default.DateRange
-                            Screen.Notes -> Icons.Default.Edit
+                            Screen.Grades -> Icons.Default.Edit
                             Screen.Config -> Icons.Default.Settings
                         },
                         contentDescription = screen.route
                     )
                 },
-                label = {Text(screen.route.replace("_screen", ""))}
+                label = {Text(screen.route.replace("_screen", "")
+                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() })}
             )
         }
     }
