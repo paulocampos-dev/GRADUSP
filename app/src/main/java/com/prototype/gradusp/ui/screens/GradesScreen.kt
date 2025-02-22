@@ -13,11 +13,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(
+fun GradesScreen(
     navController: NavController
 ) {
     Scaffold(
@@ -42,4 +44,11 @@ fun NotesScreen(
             Text(text = "Calculadora de Notas")
         }
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewGradesScreen() {
+    val navController = rememberNavController()
+    GradesScreen(navController)
 }

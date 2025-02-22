@@ -12,9 +12,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.prototype.gradusp.navigation.Screen
 import java.util.Locale
 
@@ -57,5 +59,11 @@ fun BottomNavigationBar(navController: NavHostController) {
             )
         }
     }
+}
 
+@Preview(showBackground = true)
+@Composable
+fun PreviewBottomNavigationBar() {
+    val navController = rememberNavController()
+    BottomNavigationBar(navController)
 }
