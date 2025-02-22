@@ -23,65 +23,54 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.EventOccurrence
+import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
 import java.time.DayOfWeek
 import java.time.LocalTime
 
 @Composable
-fun EventCard(title: String, startTime: java.time.LocalTime, endTime: java.time.LocalTime, color: Color) {
+fun EventCard(event: Event, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.2f))
+        colors = CardDefaults.cardColors(containerColor = event.color.copy(alpha = 0.2f))
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                Text(text = "From $startTime to $endTime")
+                Text(text = event.title, style = MaterialTheme.typography.titleMedium)
+                event.occurrences.forEach { occurrence ->
+                    Text(text = "${occurrence.day}: ${occurrence.startTime} - ${occurrence.endTime}")
+                }
             }
         }
     }
 }
 
 @Composable
-fun EventList(events: List<Event>) {
+fun EventList(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         events.forEach { event ->
-            Card(
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = event.color.copy(alpha = 0.2f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = event.title,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    event.occurrences.forEach { occurrence ->
-                        Text(
-                            text = "${occurrence.day}: ${occurrence.startTime} - ${occurrence.endTime}"
-                        )
-                    }
-
-                    if (event.recurring) {
-                        Text(
-                            text = "Recurring Event",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
+            EventCard(event = event, onClick = { selectedEvent = event })
         }
+    }
+
+    selectedEvent?.let { event ->
+        EventDetailsDialog(
+            event = event,
+            onDismiss = { selectedEvent = null },
+            onSave = { updatedEvent ->
+                onUpdateEvent(updatedEvent)
+                selectedEvent = null
+            }
+        )
     }
 }
 
@@ -118,10 +107,15 @@ fun EditableEvent(event: Event, onColorChange: (Color) -> Unit) {
 @Composable
 fun PreviewEventCard() {
     EventCard(
-        title = "Math Class",
-        startTime = java.time.LocalTime.of(10, 0),
-        endTime = java.time.LocalTime.of(12, 0),
-        color = Color.Blue
+        event = Event(
+            title = "Math Class",
+            occurrences = listOf(
+                EventOccurrence(DayOfWeek.MONDAY, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(10, 0))
+            ),
+            color = Color.Blue,
+            recurring = true
+        ),
+        onClick = {}
     )
 }
 
@@ -133,11 +127,21 @@ fun PreviewEventList() {
             Event(
                 title = "Math Class",
                 occurrences = listOf(
-                    EventOccurrence(DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(10, 0))
+                    EventOccurrence(DayOfWeek.MONDAY, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(10, 0))
                 ),
                 color = Color.Blue,
                 recurring = true
+            ),
+            Event(
+                title = "Physics Class",
+                occurrences = listOf(
+                    EventOccurrence(DayOfWeek.WEDNESDAY, java.time.LocalTime.of(14, 0), java.time.LocalTime.of(16, 0))
+                ),
+                color = Color.Red,
+                recurring = true
             )
-        )
+        ),
+        onUpdateEvent = {}
     )
 }
+

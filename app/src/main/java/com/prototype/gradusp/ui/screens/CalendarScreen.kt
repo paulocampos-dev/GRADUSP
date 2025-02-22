@@ -21,38 +21,37 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.prototype.gradusp.data.model.Event
+import com.prototype.gradusp.data.model.EventOccurrence
 import com.prototype.gradusp.data.model.sampleEvents
 import com.prototype.gradusp.ui.components.EventCard
+import com.prototype.gradusp.ui.components.EventList
 import java.time.DayOfWeek
+import java.time.LocalTime
 
 enum class CalendarView {DAILY, WEEKLY, MONTHLY}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(
-    navController: NavController
-) {
+fun CalendarScreen(navController: NavController) {
     var selectedView by remember { mutableStateOf(CalendarView.WEEKLY) }
+    var events by remember { mutableStateOf(sampleEvents) }
 
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = { Text("Calendário") }
-                )
-                CalendarViewSelector(
-                    selectedView = selectedView,
-                    onViewSelected = { selectedView = it }
-                )
+                TopAppBar(title = { Text("Calendário") })
+                CalendarViewSelector(selectedView = selectedView) { selectedView = it }
             }
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {/* Lógica para adicionar um novo evento */}
+                onClick = { /* Open event creation dialog */ }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Evento")
             }
@@ -63,15 +62,17 @@ fun CalendarScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Text(text = "Calendar Screen")
-            when(selectedView) {
+            when (selectedView) {
                 CalendarView.DAILY -> DailyView()
-                CalendarView.WEEKLY -> WeeklyView()
+                CalendarView.WEEKLY -> WeeklyView(events) { updatedEvent ->
+                    events = events.map { if (it.title == updatedEvent.title) updatedEvent else it }
+                }
                 CalendarView.MONTHLY -> MonthlyView()
             }
         }
     }
 }
+
 
 @Composable
 fun CalendarViewSelector(
@@ -97,7 +98,7 @@ fun DailyView() {
 }
 
 @Composable
-fun WeeklyView() {
+fun WeeklyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
     val daysOfWeek = DayOfWeek.values().toList()
     val eventsByDay = daysOfWeek.associateWith { day ->
         sampleEvents.filter { event -> event.occurrences.any { it.day == day } }
@@ -109,11 +110,7 @@ fun WeeklyView() {
             if (dayEvents.isNotEmpty()) {
                 Text(text = day.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
 
-                dayEvents.forEach { event ->
-                    event.occurrences.filter { it.day == day }.forEach { occurrence ->
-                        EventCard(event.title, occurrence.startTime, occurrence.endTime, event.color)
-                    }
-                }
+                EventList(events = dayEvents, onUpdateEvent = onUpdateEvent)
             }
         }
     }
