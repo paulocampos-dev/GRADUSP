@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,33 +43,36 @@ fun EventDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Event") },
+        title = { Text("Editar Evento") },
         text = {
             Column {
-                Text("Event Name")
+                Text("Nome:", fontWeight = FontWeight.Bold)
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { })
+                    keyboardActions = KeyboardActions(onDone = { }),
+                    textStyle = TextStyle(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 )
 
-                Text("Teacher")
+                Text("Professor:", fontWeight = FontWeight.Bold)
                 BasicTextField(
                     value = teacher,
                     onValueChange = { teacher = it },
                     modifier = Modifier.fillMaxWidth().padding(8.dp)
                 )
 
-                Text("Office Hours")
+                Text("Sala e Horário de atendimento", fontWeight = FontWeight.Bold)
                 BasicTextField(
                     value = officeHours,
                     onValueChange = { officeHours = it },
                     modifier = Modifier.fillMaxWidth().padding(8.dp)
                 )
 
-                Text("Notes")
+                Text("Anotações", fontWeight = FontWeight.Bold)
                 BasicTextField(
                     value = notes,
                     onValueChange = { notes = it },
@@ -74,7 +80,7 @@ fun EventDetailsDialog(
                 )
 
                 Button(onClick = { showColorPicker = true }) {
-                    Text("Change Color")
+                    Text("Mudar a Cor")
                 }
 
                 if (showColorPicker) {
@@ -90,7 +96,9 @@ fun EventDetailsDialog(
             Button(onClick = {
                 val updatedEvent = event.copy(
                     title = title,
-                    color = selectedColor
+                    color = selectedColor,
+                    occurrences = event.occurrences,  // Preserve all occurrences
+                    recurring = event.recurring       // Preserve recurring status
                 )
                 onSave(updatedEvent)
                 onDismiss()

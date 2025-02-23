@@ -43,7 +43,7 @@ val sampleEvents = listOf(
             EventOccurrence(DayOfWeek.MONDAY, LocalTime.of(8, 0), LocalTime.of(10, 0)),
             EventOccurrence(DayOfWeek.WEDNESDAY, LocalTime.of(13, 0), LocalTime.of(15, 0))
         ),
-        color = Color.Blue,
+        color = Color.LightGray,
         recurring = true
     ),
     Event(

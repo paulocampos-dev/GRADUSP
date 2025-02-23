@@ -58,7 +58,10 @@ fun EventList(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
             .padding(16.dp)
     ) {
         events.forEach { event ->
-            EventCard(event = event, onClick = { selectedEvent = event })
+            EventCard(
+                event = event,
+                onClick = { selectedEvent = event }
+            )
         }
     }
 
@@ -67,6 +70,7 @@ fun EventList(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
             event = event,
             onDismiss = { selectedEvent = null },
             onSave = { updatedEvent ->
+                // Make sure we update the entire event in the parent
                 onUpdateEvent(updatedEvent)
                 selectedEvent = null
             }
@@ -129,7 +133,7 @@ fun PreviewEventList() {
                 occurrences = listOf(
                     EventOccurrence(DayOfWeek.MONDAY, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(10, 0))
                 ),
-                color = Color.Blue,
+                color = Color.LightGray,
                 recurring = true
             ),
             Event(
