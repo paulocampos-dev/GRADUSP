@@ -6,10 +6,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -17,7 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,7 +70,7 @@ fun ConfigScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            AnimationSpeedSelection(
+            AnimationSpeedDropdown(
                 selectedSpeed = animationSpeedFlow.value,
                 onSpeedSelected = { speed ->
                     settingsViewModel.updateAnimationSpeed(speed)
@@ -102,23 +113,43 @@ fun ConfigScreen(
 
 
 @Composable
-fun AnimationSpeedSelection(selectedSpeed: AnimationSpeed, onSpeedSelected: (AnimationSpeed) -> Unit) {
-    Column {
-        AnimationSpeed.values().forEach { speed ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = (speed == selectedSpeed),
-                    onClick = { onSpeedSelected(speed) }
-                )
-                Text(
-                    text = speed.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp)
+fun AnimationSpeedDropdown(
+    selectedSpeed: AnimationSpeed,
+    onSpeedSelected: (AnimationSpeed) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Velocidade: ${selectedSpeed.name}",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Dropdown Arrow"
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            AnimationSpeed.values().forEach { speed ->
+                DropdownMenuItem(
+                    text = { Text(speed.name) },
+                    onClick = {
+                        onSpeedSelected(speed)
+                        expanded = false
+                    }
                 )
             }
         }
