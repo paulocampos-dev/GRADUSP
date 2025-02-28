@@ -15,10 +15,17 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val animationSpeed: Flow<AnimationSpeed> = userPreferencesRepository.animationSpeedFlow
+    val invertSwipeDirection: Flow<Boolean> = userPreferencesRepository.invertSwipeDirectionFlow
 
     fun updateAnimationSpeed(speed: AnimationSpeed) {
         viewModelScope.launch {
             userPreferencesRepository.updateAnimationSpeed(speed)
+        }
+    }
+
+    fun updateInvertSwipeDirection(invert: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateSwipeDirection(invert)
         }
     }
 }

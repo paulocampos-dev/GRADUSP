@@ -47,12 +47,13 @@ fun CalendarScreen(navController: NavController) {
 
     val coroutineScope = rememberCoroutineScope()
 
-    // Observe animation speed settings
+    // Observe settings
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val animationSpeed by settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MEDIUM)
+    val invertSwipeDirection by settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
 
     // Configure swipe behavior with user-defined animation duration
-    val swipeableState = rememberSwipeableState(
+    val swappableState = rememberSwipeableState(
         initialValue = selectedView,
         animationSpec = tween(
             durationMillis = animationSpeed.swipe,
@@ -61,12 +62,21 @@ fun CalendarScreen(navController: NavController) {
     )
 
     val screenWidth = with(LocalConfiguration.current) { screenWidthDp.dp }
-    val anchors = remember {
-        mapOf(
-            0f to CalendarView.DAILY,
-            screenWidth.value to CalendarView.WEEKLY,
-            (screenWidth.value * 2) to CalendarView.MONTHLY
-        )
+    val anchors = remember(invertSwipeDirection) {
+        if (!invertSwipeDirection) {
+            mapOf(
+                0f to CalendarView.DAILY,
+                screenWidth.value to CalendarView.WEEKLY,
+                (screenWidth.value * 2) to CalendarView.MONTHLY
+            )
+        } else {
+            // Inverted order for reversed swipe direction
+            mapOf(
+                0f to CalendarView.MONTHLY,
+                screenWidth.value to CalendarView.WEEKLY,
+                (screenWidth.value * 2) to CalendarView.DAILY
+            )
+        }
     }
 
     Scaffold(
@@ -78,7 +88,7 @@ fun CalendarScreen(navController: NavController) {
                     onViewSelected = { newView ->
                         selectedView = newView
                         coroutineScope.launch {
-                            swipeableState.animateTo(
+                            swappableState.animateTo(
                                 targetValue = newView,
                                 anim = tween(animationSpeed.tab)
                             )
@@ -100,24 +110,34 @@ fun CalendarScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(padding)
                 .swipeable(
-                    state = swipeableState,
+                    state = swappableState,
                     anchors = anchors,
                     thresholds = { _, _ -> FractionalThreshold(0.15f) },
                     orientation = Orientation.Horizontal,
                     resistance = null
                 )
         ) {
-            LaunchedEffect(swipeableState.currentValue) {
-                selectedView = swipeableState.currentValue
+            LaunchedEffect(swappableState.currentValue) {
+                selectedView = swappableState.currentValue
             }
 
             AnimatedContent(
                 targetState = selectedView,
                 transitionSpec = {
-                    val direction = if (
-                        targetState.ordinal > initialState.ordinal
-                    ) AnimatedContentTransitionScope.SlideDirection.Left
-                    else AnimatedContentTransitionScope.SlideDirection.Right
+                    val normalDirection = if (targetState.ordinal > initialState.ordinal)
+                        AnimatedContentTransitionScope.SlideDirection.Left
+                    else
+                        AnimatedContentTransitionScope.SlideDirection.Right
+
+                    // Apply inversion if the setting is enabled
+                    val direction = if (invertSwipeDirection) {
+                        if (normalDirection == AnimatedContentTransitionScope.SlideDirection.Left)
+                            AnimatedContentTransitionScope.SlideDirection.Right
+                        else
+                            AnimatedContentTransitionScope.SlideDirection.Left
+                    } else {
+                        normalDirection
+                    }
 
                     slideIntoContainer(direction, animationSpec = tween(animationSpeed.transition)) togetherWith
                             slideOutOfContainer(direction, animationSpec = tween(animationSpeed.transition)) using

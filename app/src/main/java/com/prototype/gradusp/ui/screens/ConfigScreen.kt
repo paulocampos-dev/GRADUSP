@@ -2,13 +2,17 @@ package com.prototype.gradusp.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -33,6 +37,7 @@ fun ConfigScreen(
     // Read the current values from SettingsManager - it will update when values change
     val settingsViewModel : SettingsViewModel = hiltViewModel()
     val animationSpeedFlow = settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MEDIUM)
+    val invertSwipeDirection = settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
@@ -61,6 +66,36 @@ fun ConfigScreen(
                 }
             )
 
+            Spacer(modifier = Modifier.padding(16.dp))
+
+            HorizontalDivider()
+
+            Spacer(modifier = Modifier.padding(16.dp))
+
+            Text(
+                text = "Configurações de Swipe",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Inverter direção de deslize",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = invertSwipeDirection.value,
+                    onCheckedChange = { inverted ->
+                        settingsViewModel.updateInvertSwipeDirection(inverted)
+                    }
+                )
+            }
         }
     }
 }
