@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -29,9 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -290,7 +293,7 @@ fun DailyViewHeader(
 
             IconButton(onClick = onNextDay) {
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "Próximo dia"
                 )
             }
@@ -338,7 +341,7 @@ fun TimeSlot(hour: Int, events: List<Event>, onClick: (Event) -> Unit) {
                 fontWeight = FontWeight.Medium
             )
 
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp),
@@ -380,7 +383,7 @@ fun TimeSlot(hour: Int, events: List<Event>, onClick: (Event) -> Unit) {
                     .height(16.dp)
                     .padding(start = 24.dp)
             ) {
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                 )
@@ -445,350 +448,10 @@ fun WeeklyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
     }
 }
 
-@Composable
-fun MonthlyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
-    var selectedEvent by remember { mutableStateOf<Event?>(null) }
-    val currentMonth = remember { YearMonth.now() }
-    var selectedMonth by remember { mutableStateOf(currentMonth) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
-        // Month navigation header with today button
-        MonthNavigationHeader(
-            currentMonth = selectedMonth,
-            onPreviousMonth = { selectedMonth = selectedMonth.minusMonths(1) },
-            onNextMonth = { selectedMonth = selectedMonth.plusMonths(1) },
-            onTodayClick = { selectedMonth = YearMonth.now() }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Days of week header
-        WeekdaysHeader()
-
-        // Calendar grid
-        CalendarGrid(
-            yearMonth = selectedMonth,
-            events = events,
-            onEventClick = { selectedEvent = it }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // List of events for the selected month
-        val monthEvents = events.filter { event ->
-            event.occurrences.any { occurrence ->
-                // In a real app, you'd filter by the actual date
-                // Here we're just showing all events as example
-                true
-            }
-        }
-
-        Text(
-            text = "Eventos deste mês",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
-        LazyColumn(
-            modifier = Modifier.weight(1f)
-        ) {
-            items(monthEvents) { event ->
-                EventCard(
-                    event = event,
-                    onClick = { selectedEvent = event }
-                )
-            }
-
-            if (monthEvents.isEmpty()) {
-                item {
-                    Text(
-                        text = "Não há eventos para este mês",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray,
-                        modifier = Modifier
-                            .padding(vertical = 16.dp)
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-
-    selectedEvent?.let { event ->
-        EventDetailsDialog(
-            event = event,
-            onDismiss = { selectedEvent = null },
-            onSave = { updatedEvent ->
-                onUpdateEvent(updatedEvent)
-                selectedEvent = null
-            }
-        )
-    }
-}
 
 
-@Composable
-fun MonthNavigationHeader(
-    currentMonth: YearMonth,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    onTodayClick: () -> Unit = {}
-) {
-    val isCurrentMonth = currentMonth.equals(YearMonth.now())
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onPreviousMonth) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowLeft,
-                    contentDescription = "Mês anterior"
-                )
-            }
-
-            Text(
-                text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pt", "BR"))),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            IconButton(onClick = onNextMonth) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowRight,
-                    contentDescription = "Próximo mês"
-                )
-            }
-        }
-
-        // Today button - only show if not on current month
-        AnimatedVisibility(visible = !isCurrentMonth) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                OutlinedButton(
-                    onClick = onTodayClick,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Mês atual",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Hoje")
-                }
-            }
-        }
-    }
-}
 
 
-@Composable
-fun WeekdaysHeader() {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        val daysOfWeek = DayOfWeek.values()
-
-        for (dayOfWeek in daysOfWeek) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pt", "BR")),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CalendarGrid(
-    yearMonth: YearMonth,
-    events: List<Event>,
-    onEventClick: (Event) -> Unit
-) {
-    val firstDayOfMonth = yearMonth.atDay(1)
-    val lastDayOfMonth = yearMonth.atEndOfMonth()
-    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7 // Adjust for Sunday as first day
-    val totalDays = lastDayOfMonth.dayOfMonth
-    val totalCells = firstDayOfWeek + totalDays
-    val totalRows = ceil(totalCells / 7.0).toInt()
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        for (row in 0 until totalRows) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (column in 0 until 7) {
-                    val cellIndex = row * 7 + column
-                    val dayOfMonth = cellIndex - firstDayOfWeek + 1
-
-                    if (dayOfMonth in 1..totalDays) {
-                        val date = yearMonth.atDay(dayOfMonth)
-                        val dayOfWeek = date.dayOfWeek
-
-                        // Get events for this specific day
-                        val dayEvents = events.filter { event ->
-                            event.occurrences.any { it.day == dayOfWeek }
-                        }
-
-                        val hasEvents = dayEvents.isNotEmpty()
-
-                        CalendarDay(
-                            day = dayOfMonth,
-                            isToday = date.equals(LocalDate.now()),
-                            hasEvents = hasEvents,
-                            events = dayEvents,
-                            onClick = {
-                                if (hasEvents) {
-                                    onEventClick(dayEvents.first())
-                                }
-                            }
-                        )
-                    } else {
-                        // Empty cell
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-fun RowScope.CalendarDay(
-    day: Int,
-    isToday: Boolean,
-    hasEvents: Boolean,
-    events: List<Event> = emptyList(),
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .aspectRatio(1f)
-            .padding(2.dp)
-            .background(
-                color = if (isToday) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                shape = RoundedCornerShape(4.dp)
-            )
-            .border(
-                width = if (isToday) 2.dp else 1.dp,
-                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(4.dp)
-            )
-            .clickable(enabled = hasEvents, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(2.dp)
-        ) {
-            // Day number
-            Text(
-                text = day.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(1.dp))
-
-            // Event indicators
-            if (events.isNotEmpty()) {
-                DayEventIndicators(events = events)
-            }
-        }
-    }
-}
-
-
-@Composable
-fun MiniEventIndicator(
-    event: Event,
-    modifier: Modifier = Modifier
-) {
-    // Determine importance level for visual emphasis
-    val borderWidth = when (event.importance) {
-        EventImportance.HIGH -> 0.7.dp
-        EventImportance.NORMAL -> 0.5.dp
-        EventImportance.LOW -> 0.dp
-    }
-
-    // Create a mini indicator with the event's color
-    Box(
-        modifier = modifier
-            .size(width = 10.dp, height = 4.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(event.color)
-            .border(
-                width = borderWidth,
-                color = Color.White.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(2.dp)
-            )
-    )
-}
-
-@Composable
-fun DayEventIndicators(
-    events: List<Event>,
-    modifier: Modifier = Modifier
-) {
-    if (events.isEmpty()) return
-
-    // Group by color to avoid duplicates
-    val eventsGrouped = events.groupBy { it.color }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(top = 2.dp)
-    ) {
-        // Show up to 3 mini bars representing events
-        val displayEvents = eventsGrouped.entries.take(3)
-        val hasMoreEvents = eventsGrouped.size > 3
-
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(vertical = 1.dp)
-        ) {
-            displayEvents.forEach { (_, eventsWithColor) ->
-                val event = eventsWithColor.maxByOrNull { it.importance.ordinal } ?: eventsWithColor.first()
-                MiniEventIndicator(
-                    event = event,
-                    modifier = Modifier.padding(horizontal = 1.dp)
-                )
-            }
-        }
-
-        // If there are more events, show a count
-        if (hasMoreEvents) {
-            Text(
-                text = "+${eventsGrouped.size - 3}",
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 8.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
 
 @Preview(showBackground = true)
 @Composable
