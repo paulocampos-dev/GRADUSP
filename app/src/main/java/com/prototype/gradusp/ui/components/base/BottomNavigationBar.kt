@@ -1,4 +1,4 @@
-package com.prototype.gradusp.ui.components
+package com.prototype.gradusp.ui.components.base
 
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons

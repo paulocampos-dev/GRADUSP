@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.Module
 import dagger.Provides
 import com.prototype.gradusp.data.UserPreferencesRepository
+import com.prototype.gradusp.data.repository.EventRepository
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
@@ -18,5 +19,11 @@ object AppModule {
         @ApplicationContext context: Context
     ): UserPreferencesRepository {
         return UserPreferencesRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideEventRepository(): EventRepository {
+        return EventRepository()
     }
 }

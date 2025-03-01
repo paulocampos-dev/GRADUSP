@@ -7,9 +7,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
-import com.prototype.gradusp.ui.screens.CalendarScreen
-import com.prototype.gradusp.ui.screens.ConfigScreen
-import com.prototype.gradusp.ui.screens.GradesScreen
+import com.prototype.gradusp.ui.calendar.CalendarScreen
+import com.prototype.gradusp.ui.settings.ConfigScreen
+import com.prototype.gradusp.ui.grades.GradesScreen
 
 sealed class Screen(val route: String) {
     data object Calendar : Screen("calendar_screen")
