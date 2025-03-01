@@ -88,6 +88,16 @@ val sampleEvents = listOf(
         recurring = true,
         importance = EventImportance.LOW,
         notes = "Trazer lista de exercícios 3 e 4"
+    ),
+    Event(
+        title = "TESTE",
+        occurrences = listOf(
+            EventOccurrence(DayOfWeek.WEDNESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0))
+        ),
+        color = eventColors[3],
+        recurring = true,
+        importance = EventImportance.LOW,
+        notes = "SEI LA CARA"
     )
 )
 

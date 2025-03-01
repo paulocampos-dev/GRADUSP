@@ -91,14 +91,14 @@ fun EventCard(event: Event, onClick: () -> Unit) {
                     )
 
                     // Importance indicator
-                    if (event.importance == EventImportance.HIGH) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Alta importância",
-                            tint = Color(0xFFFFD700), // Gold color
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+//                    if (event.importance == EventImportance.HIGH) {
+//                        Icon(
+//                            imageVector = Icons.Default.Star,
+//                            contentDescription = "Alta importância",
+//                            tint = Color(0xFFFFD700), // Gold color
+//                            modifier = Modifier.padding(start = 4.dp)
+//                        )
+//                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
