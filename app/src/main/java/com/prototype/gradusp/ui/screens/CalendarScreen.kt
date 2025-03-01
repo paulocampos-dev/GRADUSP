@@ -2,24 +2,35 @@ package com.prototype.gradusp.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -36,6 +47,12 @@ import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
+import kotlin.math.ceil
 
 enum class CalendarView { DAILY, WEEKLY, MONTHLY }
 
@@ -145,11 +162,15 @@ fun CalendarScreen(navController: NavController) {
                 }
             ) { targetView ->
                 when (targetView) {
-                    CalendarView.DAILY -> DailyView()
+                    CalendarView.DAILY -> DailyView(events) { updatedEvent ->
+                        events = events.map { if (it.title == updatedEvent.title) updatedEvent else it }
+                    }
                     CalendarView.WEEKLY -> WeeklyView(events) { updatedEvent ->
                         events = events.map { if (it.title == updatedEvent.title) updatedEvent else it }
                     }
-                    CalendarView.MONTHLY -> MonthlyView()
+                    CalendarView.MONTHLY -> MonthlyView(events) { updatedEvent ->
+                        events = events.map { if (it.title == updatedEvent.title) updatedEvent else it }
+                    }
                 }
             }
         }
@@ -171,8 +192,197 @@ fun CalendarViewSelector(selectedView: CalendarView, onViewSelected: (CalendarVi
 }
 
 @Composable
-fun DailyView() {
-//    EventList(events = sampleEvents.filter { it.date == LocalDate.now() })
+fun DailyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
+
+    // Use the current date as initial state but allow navigation
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val currentDayOfWeek = selectedDate.dayOfWeek
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Header with day navigation and today button
+        DailyViewHeader(
+            selectedDate = selectedDate,
+            onPreviousDay = { selectedDate = selectedDate.minusDays(1) },
+            onNextDay = { selectedDate = selectedDate.plusDays(1) },
+            onTodayClick = { selectedDate = LocalDate.now() }
+        )
+
+        // Time slots
+        val startHour = 7 // 7 AM
+        val endHour = 22 // 10 PM
+
+        LazyColumn {
+            items(endHour - startHour + 1) { hourOffset ->
+                val hour = startHour + hourOffset
+                val timeSlotEvents = events.filter { event ->
+                    event.occurrences.any {
+                        it.day == currentDayOfWeek &&
+                                (it.startTime.hour == hour ||
+                                        (it.startTime.hour < hour && it.endTime.hour > hour))
+                    }
+                }
+
+                TimeSlot(
+                    hour = hour,
+                    events = timeSlotEvents,
+                    onClick = { selectedEvent = it }
+                )
+            }
+        }
+    }
+
+    selectedEvent?.let { event ->
+        EventDetailsDialog(
+            event = event,
+            onDismiss = { selectedEvent = null },
+            onSave = { updatedEvent ->
+                onUpdateEvent(updatedEvent)
+                selectedEvent = null
+            }
+        )
+    }
+}
+
+@Composable
+fun DailyViewHeader(
+    selectedDate: LocalDate,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
+    onTodayClick: () -> Unit
+) {
+    val isToday = selectedDate.equals(LocalDate.now())
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPreviousDay) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowLeft,
+                    contentDescription = "Dia anterior"
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pt", "BR")),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = selectedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(onClick = onNextDay) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = "Próximo dia"
+                )
+            }
+        }
+
+        // Today button
+        AnimatedVisibility(visible = !isToday) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                OutlinedButton(
+                    onClick = onTodayClick,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Hoje",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Hoje")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+fun TimeSlot(hour: Int, events: List<Event>, onClick: (Event) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Hour indicator
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Hour text with AM/PM indicator
+            Text(
+                text = String.format("%02d:00", hour) + if (hour < 12) " AM" else " PM",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+
+            Divider(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            )
+        }
+
+        // Events at this hour
+        if (events.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp) // Indentation to align with hour markers
+            ) {
+                events.forEach { event ->
+                    val occurrence = event.occurrences.firstOrNull { it.startTime.hour <= hour && it.endTime.hour > hour }
+                    occurrence?.let {
+                        // Show event with time information
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            EventCard(
+                                event = event.copy(
+                                    occurrences = listOf(occurrence)
+                                ),
+                                onClick = { onClick(event) }
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            // Empty time slot indicator
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(16.dp)
+                    .padding(start = 24.dp)
+            ) {
+                Divider(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -232,8 +442,273 @@ fun WeeklyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
 }
 
 @Composable
-fun MonthlyView() {
-//    EventList(events = sampleEvents.filter { it.date.month == LocalDate.now().month })
+fun MonthlyView(events: List<Event>, onUpdateEvent: (Event) -> Unit) {
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
+    val currentMonth = remember { YearMonth.now() }
+    var selectedMonth by remember { mutableStateOf(currentMonth) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)
+    ) {
+        // Month navigation header with today button
+        MonthNavigationHeader(
+            currentMonth = selectedMonth,
+            onPreviousMonth = { selectedMonth = selectedMonth.minusMonths(1) },
+            onNextMonth = { selectedMonth = selectedMonth.plusMonths(1) },
+            onTodayClick = { selectedMonth = YearMonth.now() }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Days of week header
+        WeekdaysHeader()
+
+        // Calendar grid
+        CalendarGrid(
+            yearMonth = selectedMonth,
+            events = events,
+            onEventClick = { selectedEvent = it }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // List of events for the selected month
+        val monthEvents = events.filter { event ->
+            event.occurrences.any { occurrence ->
+                // In a real app, you'd filter by the actual date
+                // Here we're just showing all events as example
+                true
+            }
+        }
+
+        Text(
+            text = "Eventos deste mês",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier.weight(1f)
+        ) {
+            items(monthEvents) { event ->
+                EventCard(
+                    event = event,
+                    onClick = { selectedEvent = event }
+                )
+            }
+
+            if (monthEvents.isEmpty()) {
+                item {
+                    Text(
+                        text = "Não há eventos para este mês",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .padding(vertical = 16.dp)
+                            .fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+
+    selectedEvent?.let { event ->
+        EventDetailsDialog(
+            event = event,
+            onDismiss = { selectedEvent = null },
+            onSave = { updatedEvent ->
+                onUpdateEvent(updatedEvent)
+                selectedEvent = null
+            }
+        )
+    }
+}
+
+
+@Composable
+fun MonthNavigationHeader(
+    currentMonth: YearMonth,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onTodayClick: () -> Unit = {}
+) {
+    val isCurrentMonth = currentMonth.equals(YearMonth.now())
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPreviousMonth) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowLeft,
+                    contentDescription = "Mês anterior"
+                )
+            }
+
+            Text(
+                text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pt", "BR"))),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            IconButton(onClick = onNextMonth) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = "Próximo mês"
+                )
+            }
+        }
+
+        // Today button - only show if not on current month
+        AnimatedVisibility(visible = !isCurrentMonth) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                OutlinedButton(
+                    onClick = onTodayClick,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Mês atual",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Hoje")
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun WeekdaysHeader() {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        val daysOfWeek = DayOfWeek.values()
+
+        for (dayOfWeek in daysOfWeek) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pt", "BR")),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarGrid(
+    yearMonth: YearMonth,
+    events: List<Event>,
+    onEventClick: (Event) -> Unit
+) {
+    val firstDayOfMonth = yearMonth.atDay(1)
+    val lastDayOfMonth = yearMonth.atEndOfMonth()
+    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7 // Adjust for Sunday as first day
+    val totalDays = lastDayOfMonth.dayOfMonth
+    val totalCells = firstDayOfWeek + totalDays
+    val totalRows = ceil(totalCells / 7.0).toInt()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        for (row in 0 until totalRows) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                for (column in 0 until 7) {
+                    val cellIndex = row * 7 + column
+                    val dayOfMonth = cellIndex - firstDayOfWeek + 1
+
+                    if (dayOfMonth in 1..totalDays) {
+                        val date = yearMonth.atDay(dayOfMonth)
+                        val hasEvents = events.any { event ->
+                            event.occurrences.any { it.day == date.dayOfWeek }
+                        }
+
+                        CalendarDay(
+                            day = dayOfMonth,
+                            isToday = date.equals(LocalDate.now()),
+                            hasEvents = hasEvents,
+                            onClick = {
+                                val dayEvents = events.filter { event ->
+                                    event.occurrences.any { it.day == date.dayOfWeek }
+                                }
+                                if (dayEvents.isNotEmpty()) {
+                                    onEventClick(dayEvents.first())
+                                }
+                            }
+                        )
+                    } else {
+                        // Empty cell
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .padding(2.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RowScope.CalendarDay(
+    day: Int,
+    isToday: Boolean,
+    hasEvents: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .aspectRatio(1f)
+            .padding(2.dp)
+            .background(
+                color = if (isToday) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .border(
+                width = if (isToday) 2.dp else 1.dp,
+                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .clickable(enabled = hasEvents, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = day.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+            )
+
+            if (hasEvents) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .padding(top = 4.dp)
+                )
+            }
+        }
+    }
 }
 
 @Preview(showBackground = true)
