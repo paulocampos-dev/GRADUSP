@@ -133,20 +133,10 @@ fun CalendarScreen(navController: NavController) {
             AnimatedContent(
                 targetState = selectedView,
                 transitionSpec = {
-                    val normalDirection = if (targetState.ordinal > initialState.ordinal)
+                    val direction = if (targetState.ordinal > initialState.ordinal)
                         AnimatedContentTransitionScope.SlideDirection.Left
                     else
                         AnimatedContentTransitionScope.SlideDirection.Right
-
-                    // Apply inversion if the setting is enabled
-                    val direction = if (invertSwipeDirection) {
-                        if (normalDirection == AnimatedContentTransitionScope.SlideDirection.Left)
-                            AnimatedContentTransitionScope.SlideDirection.Right
-                        else
-                            AnimatedContentTransitionScope.SlideDirection.Left
-                    } else {
-                        normalDirection
-                    }
 
                     slideIntoContainer(direction, animationSpec = tween(animationSpeed.transition)) togetherWith
                             slideOutOfContainer(direction, animationSpec = tween(animationSpeed.transition)) using
