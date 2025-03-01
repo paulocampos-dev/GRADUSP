@@ -25,9 +25,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,10 +43,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.EventImportance
-import com.prototype.gradusp.ui.components.EventCard
+import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
 import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -222,7 +218,10 @@ fun EnhancedCalendarGrid(
 ) {
     val firstDayOfMonth = yearMonth.atDay(1)
     val lastDayOfMonth = yearMonth.atEndOfMonth()
-    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7 // Adjust for Sunday as first day
+
+    // Adjust to make Sunday as first day of week (1-7 where 1 is Monday in ISO)
+    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value % 7
+
     val totalDays = lastDayOfMonth.dayOfMonth
     val totalCells = firstDayOfWeek + totalDays
     val totalRows = ceil(totalCells / 7.0).toInt()
@@ -372,7 +371,7 @@ fun RowScope.EnhancedCalendarDay(
                             .verticalScroll(rememberScrollState())
                     ) {
                         // Now we're showing up to 4 events instead of 3
-                        displayEvents.take(4).forEach { event ->
+                        displayEvents.forEach { event ->
                             EnhancedEventIndicator(
                                 event = event,
                                 onClick = { onEventClick(event) }
@@ -423,7 +422,8 @@ fun EnhancedEventIndicator(
             .height(18.dp) // Increased height for better visibility
             .background(backgroundColor, RoundedCornerShape(3.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp)
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text = event.title,
@@ -434,115 +434,5 @@ fun EnhancedEventIndicator(
             color = textColor,
             modifier = Modifier.align(Alignment.CenterStart)
         )
-    }
-}
-
-@Composable
-fun DayDetailsDialog(
-    date: LocalDate,
-    events: List<Event>,
-    onDismiss: () -> Unit,
-    onEventClick: (Event) -> Unit
-) {
-    val dayOfWeek = date.dayOfWeek
-    val dayName = dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pt", "BR"))
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth()
-            ) {
-                // Header with date information
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = dayName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("pt", "BR"))),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Eventos do Dia",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Divider()
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Events list
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .heightIn(min = 100.dp, max = 350.dp)
-                ) {
-                    if (events.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            events.forEach { event ->
-                                // Only include occurrences for this day of week
-                                val filteredOccurrences = event.occurrences.filter { it.day == dayOfWeek }
-                                if (filteredOccurrences.isNotEmpty()) {
-                                    val filteredEvent = event.copy(occurrences = filteredOccurrences)
-                                    EventCard(
-                                        event = filteredEvent,
-                                        onClick = { onEventClick(event) }
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Nenhum evento para este dia",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Bottom button
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Fechar")
-                }
-            }
-        }
     }
 }
