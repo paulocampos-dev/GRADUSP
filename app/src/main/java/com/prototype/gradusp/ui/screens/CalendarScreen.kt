@@ -1,5 +1,6 @@
 package com.prototype.gradusp.ui.screens
 
+import android.inputmethodservice.Keyboard.Row
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
@@ -26,12 +27,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -41,6 +44,7 @@ import androidx.wear.compose.material.rememberSwipeableState
 import androidx.wear.compose.material.swipeable
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.model.Event
+import com.prototype.gradusp.data.model.EventImportance
 import com.prototype.gradusp.data.model.sampleEvents
 import com.prototype.gradusp.ui.components.EventCard
 import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
@@ -633,19 +637,22 @@ fun CalendarGrid(
 
                     if (dayOfMonth in 1..totalDays) {
                         val date = yearMonth.atDay(dayOfMonth)
-                        val hasEvents = events.any { event ->
-                            event.occurrences.any { it.day == date.dayOfWeek }
+                        val dayOfWeek = date.dayOfWeek
+
+                        // Get events for this specific day
+                        val dayEvents = events.filter { event ->
+                            event.occurrences.any { it.day == dayOfWeek }
                         }
+
+                        val hasEvents = dayEvents.isNotEmpty()
 
                         CalendarDay(
                             day = dayOfMonth,
                             isToday = date.equals(LocalDate.now()),
                             hasEvents = hasEvents,
+                            events = dayEvents,
                             onClick = {
-                                val dayEvents = events.filter { event ->
-                                    event.occurrences.any { it.day == date.dayOfWeek }
-                                }
-                                if (dayEvents.isNotEmpty()) {
+                                if (hasEvents) {
                                     onEventClick(dayEvents.first())
                                 }
                             }
@@ -665,11 +672,13 @@ fun CalendarGrid(
     }
 }
 
+
 @Composable
 fun RowScope.CalendarDay(
     day: Int,
     isToday: Boolean,
     hasEvents: Boolean,
+    events: List<Event> = emptyList(),
     onClick: () -> Unit
 ) {
     Box(
@@ -690,8 +699,10 @@ fun RowScope.CalendarDay(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(2.dp)
         ) {
+            // Day number
             Text(
                 text = day.toString(),
                 style = MaterialTheme.typography.bodyMedium,
@@ -699,14 +710,82 @@ fun RowScope.CalendarDay(
                 color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             )
 
-            if (hasEvents) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .padding(top = 4.dp)
+            Spacer(modifier = Modifier.height(1.dp))
+
+            // Event indicators
+            if (events.isNotEmpty()) {
+                DayEventIndicators(events = events)
+            }
+        }
+    }
+}
+
+
+@Composable
+fun MiniEventIndicator(
+    event: Event,
+    modifier: Modifier = Modifier
+) {
+    // Determine importance level for visual emphasis
+    val borderWidth = when (event.importance) {
+        EventImportance.HIGH -> 0.7.dp
+        EventImportance.NORMAL -> 0.5.dp
+        EventImportance.LOW -> 0.dp
+    }
+
+    // Create a mini indicator with the event's color
+    Box(
+        modifier = modifier
+            .size(width = 10.dp, height = 4.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(event.color)
+            .border(
+                width = borderWidth,
+                color = Color.White.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(2.dp)
+            )
+    )
+}
+
+@Composable
+fun DayEventIndicators(
+    events: List<Event>,
+    modifier: Modifier = Modifier
+) {
+    if (events.isEmpty()) return
+
+    // Group by color to avoid duplicates
+    val eventsGrouped = events.groupBy { it.color }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.padding(top = 2.dp)
+    ) {
+        // Show up to 3 mini bars representing events
+        val displayEvents = eventsGrouped.entries.take(3)
+        val hasMoreEvents = eventsGrouped.size > 3
+
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(vertical = 1.dp)
+        ) {
+            displayEvents.forEach { (_, eventsWithColor) ->
+                val event = eventsWithColor.maxByOrNull { it.importance.ordinal } ?: eventsWithColor.first()
+                MiniEventIndicator(
+                    event = event,
+                    modifier = Modifier.padding(horizontal = 1.dp)
                 )
             }
+        }
+
+        // If there are more events, show a count
+        if (hasMoreEvents) {
+            Text(
+                text = "+${eventsGrouped.size - 3}",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 8.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
