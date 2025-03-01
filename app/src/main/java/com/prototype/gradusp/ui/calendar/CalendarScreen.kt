@@ -79,6 +79,8 @@ fun CalendarScreen(
                 totalDragAmount = 0f
             },
             onHorizontalDrag = { _, dragAmount ->
+                val effectiveDragAmount = if (invertSwipeDirection) -dragAmount else dragAmount
+
                 // Accumulate total drag distance for this gesture
                 totalDragAmount += dragAmount
 
