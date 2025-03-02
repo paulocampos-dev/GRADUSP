@@ -11,7 +11,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     val animationSpeed: Flow<AnimationSpeed> = userPreferencesRepository.animationSpeedFlow

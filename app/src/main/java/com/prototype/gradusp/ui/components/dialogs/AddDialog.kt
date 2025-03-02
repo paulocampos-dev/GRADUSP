@@ -1,16 +1,6 @@
 package com.prototype.gradusp.ui.components.dialogs
 
 import android.os.Build
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
@@ -18,11 +8,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,23 +26,34 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -62,9 +66,14 @@ import com.prototype.gradusp.data.model.eventColors
 import com.prototype.gradusp.data.parser.UspParser
 import com.prototype.gradusp.data.repository.UspDataRepository
 import com.prototype.gradusp.utils.DateTimeUtils
+import com.prototype.gradusp.viewmodel.SettingsViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalTime
+import java.util.Locale
 
 @Composable
 fun AddEventDialog(
@@ -81,7 +90,7 @@ fun AddEventDialog(
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -268,20 +277,118 @@ enum class DialogState { SEARCH, SELECT_CLASSROOM }
 @Composable
 fun AddLectureDialog(
     onDismiss: () -> Unit,
-    onLectureSelected: (Lecture, Classroom) -> Unit
+    onLectureSelected: (Lecture, Classroom) -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<Lecture>>(emptyList()) }
+    var allLectures by remember { mutableStateOf<List<Lecture>>(emptyList()) }
+    var filteredLectures by remember { mutableStateOf<List<Lecture>>(emptyList()) }
     var selectedLecture by remember { mutableStateOf<Lecture?>(null) }
     var selectedClassroom by remember { mutableStateOf<Classroom?>(null) }
-    var isSearching by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
     var searchError by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by remember { mutableStateOf<String?>(null) }
+    var campusUnits by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val uspDataRepository = remember { UspDataRepository(context, viewModel.userPreferencesRepository) }
 
     // Define dialog state
     var dialogState by remember { mutableStateOf(DialogState.SEARCH) }
+
+    // Filter campus units
+    val uniqueCampuses = remember(campusUnits) {
+        campusUnits.keys.toList()
+    }
+
+    // Load all cached lectures
+    LaunchedEffect(true) {
+        coroutineScope.launch {
+            try {
+                isLoading = true
+
+                // Load campus units
+                campusUnits = uspDataRepository.getCampusUnits()
+
+                // Load all lectures from cache
+                val lecturesDirectory = File(context.filesDir, "lectures")
+                if (lecturesDirectory.exists()) {
+                    val lectureFiles = withContext(Dispatchers.IO) {
+                        lecturesDirectory.listFiles { file -> file.extension == "json" }
+                    } ?: emptyArray()
+
+                    val loadedLectures = lectureFiles.mapNotNull { file ->
+                        withContext(Dispatchers.IO) {
+                            try {
+                                uspDataRepository.getLecture(file.nameWithoutExtension)
+                            } catch (e: Exception) {
+                                Log.e("AddLectureDialog", "Error loading lecture: ${file.name}", e)
+                                null
+                            }
+                        }
+                    }
+
+                    allLectures = loadedLectures
+                    filteredLectures = loadedLectures
+                } else {
+                    searchError = "Nenhuma matéria encontrada. Por favor, atualize os dados da USP na tela de configurações."
+                }
+            } catch (e: Exception) {
+                searchError = "Erro ao carregar matérias: ${e.message}"
+                Log.e("AddLectureDialog", "Loading error", e)
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // Update filtered lectures when search query changes
+    LaunchedEffect(searchQuery, selectedFilter, allLectures) {
+        if (allLectures.isNotEmpty()) {
+            filteredLectures = if (searchQuery.isBlank() && selectedFilter == null) {
+                allLectures
+            } else {
+                allLectures.filter { lecture ->
+                    val matchesFilter = selectedFilter == null || lecture.campus == selectedFilter
+                    val matchesSearch = searchQuery.isBlank() || lecture.matchesSearch(searchQuery)
+
+                    matchesFilter && matchesSearch
+                }
+            }
+        }
+    }
+
+    // Function to check if a lecture matches the search query (fuzzy search)
+    fun Lecture.matchesSearch(query: String): Boolean {
+        val normalizedQuery = query.lowercase(Locale.getDefault()).trim()
+
+        // Empty query matches everything
+        if (normalizedQuery.isEmpty()) return true
+
+        // Split the query into words for multi-word matching
+        val queryWords = normalizedQuery.split(Regex("\\s+"))
+
+        // Check each field for matches
+        return queryWords.all { word ->
+            code.lowercase().contains(word) ||
+                    name.lowercase().contains(word) ||
+                    unit.lowercase().contains(word) ||
+                    department.lowercase().contains(word) ||
+                    campus.lowercase().contains(word) ||
+
+                    // Check for partial matches in lecture code
+                    // MAC0110 would match "mac", "110", "m11", etc.
+                    code.lowercase().windowed(word.length, 1, true)
+                        .any { it == word } ||
+
+                    // Match acronyms (e.g. "CD" would match "Calculo Diferencial")
+                    (word.length > 1 && word.all { it.isLetter() } &&
+                            name.split(Regex("\\s+")).filter { it.isNotEmpty() }
+                                .map { it.first().lowercase() }
+                                .joinToString("").contains(word))
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -301,7 +408,7 @@ fun AddLectureDialog(
                     Column(
                         modifier = Modifier
                             .padding(16.dp)
-                            .heightIn(max = 500.dp)
+                            .heightIn(max = 600.dp)
                     ) {
                         Text(
                             text = "Adicionar Matéria",
@@ -311,58 +418,71 @@ fun AddLectureDialog(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Search field
+                        // Search field with better styling
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            label = { Text("Buscar por código ou nome da matéria") },
+                            label = { Text("Buscar por código, nome ou unidade") },
                             modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Ícone de busca"
+                                )
+                            },
                             trailingIcon = {
-                                IconButton(
-                                    onClick = {
-                                        if (searchQuery.isNotBlank()) {
-                                            coroutineScope.launch {
-                                                isSearching = true
-                                                searchError = null
-                                                try {
-                                                    // Create a parser instance directly
-                                                    val parser = UspParser(context)
-
-                                                    // If it looks like a lecture code (e.g., MAC0110)
-                                                    if (searchQuery.matches(Regex("[A-Z]{3}\\d{4}"))) {
-                                                        val lecture = parser.fetchLecture(searchQuery)
-                                                        searchResults = listOfNotNull(lecture)
-                                                    } else {
-                                                        // Simplified search - in a real app, implement a more robust search
-                                                        searchError = "Por favor, digite o código exato da disciplina (ex: MAC0110)"
-                                                        searchResults = emptyList()
-                                                    }
-
-                                                    if (searchResults.isEmpty() && searchError == null) {
-                                                        searchError = "Nenhuma matéria encontrada com esse termo"
-                                                    }
-                                                } catch (e: Exception) {
-                                                    searchError = "Erro ao buscar matérias: ${e.message}"
-                                                    Log.e("AddLectureDialog", "Search error", e)
-                                                } finally {
-                                                    isSearching = false
-                                                }
-                                            }
-                                        }
+                                if (searchQuery.isNotBlank()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Limpar busca"
+                                        )
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "Buscar"
-                                    )
                                 }
                             }
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        if (isSearching) {
+                        // Campus filter chips
+                        if (uniqueCampuses.isNotEmpty()) {
+                            Text(
+                                text = "Filtrar por Campus:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            ) {
+                                item {
+                                    FilterChip(
+                                        selected = selectedFilter == null,
+                                        onClick = { selectedFilter = null },
+                                        label = { Text("Todos") }
+                                    )
+                                }
+
+                                items(uniqueCampuses) { campus ->
+                                    FilterChip(
+                                        selected = selectedFilter == campus,
+                                        onClick = { selectedFilter = campus },
+                                        label = { Text(campus) }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (isLoading) {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Carregando matérias...",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
 
                         searchError?.let {
@@ -370,6 +490,16 @@ fun AddLectureDialog(
                                 text = it,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+
+                        // Results count
+                        if (!isLoading && filteredLectures.isNotEmpty()) {
+                            Text(
+                                text = "${filteredLectures.size} matérias encontradas",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
 
@@ -381,7 +511,7 @@ fun AddLectureDialog(
                                 .weight(1f)
                                 .fillMaxWidth()
                         ) {
-                            items(searchResults) { lecture ->
+                            items(filteredLectures) { lecture ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -407,22 +537,50 @@ fun AddLectureDialog(
                                         Text(
                                             text = "${lecture.code} - ${lecture.name}",
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
 
                                         Spacer(modifier = Modifier.height(4.dp))
 
-                                        Text(
-                                            text = "${lecture.unit} - ${lecture.department}",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = lecture.unit,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
 
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = lecture.department,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
 
-                                        Text(
-                                            text = "Créditos: ${lecture.lectureCredits} (aula) + ${lecture.workCredits} (trabalho)",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
+                                            Column(
+                                                horizontalAlignment = Alignment.End,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            ) {
+                                                Text(
+                                                    text = lecture.campus,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+
+                                                Text(
+                                                    text = "${lecture.classrooms.size} turmas",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -444,7 +602,7 @@ fun AddLectureDialog(
                     Column(
                         modifier = Modifier
                             .padding(16.dp)
-                            .heightIn(max = 500.dp)
+                            .heightIn(max = 600.dp)
                     ) {
                         Text(
                             text = "Selecionar Turma",
@@ -459,9 +617,26 @@ fun AddLectureDialog(
                                 text = "${lecture.code} - ${lecture.name}",
                                 style = MaterialTheme.typography.titleMedium
                             )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = lecture.unit,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
+
+                        // Classroom count
+                        Text(
+                            text = "${selectedLecture?.classrooms?.size ?: 0} turmas disponíveis",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         LazyColumn(
                             modifier = Modifier
@@ -486,11 +661,24 @@ fun AddLectureDialog(
                                     Column(
                                         modifier = Modifier.padding(16.dp)
                                     ) {
-                                        Text(
-                                            text = "Turma ${classroom.code}",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Turma ${classroom.code}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            if (classroom.startDate.isNotBlank() && classroom.endDate.isNotBlank()) {
+                                                Text(
+                                                    text = "${classroom.startDate} - ${classroom.endDate}",
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
+                                        }
 
                                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -510,11 +698,36 @@ fun AddLectureDialog(
                                         }
 
                                         if (classroom.teachers.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Text(
+                                                text = "Professor${if (classroom.teachers.size > 1) "es" else ""}:",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+
+                                            classroom.teachers.forEach { teacher ->
+                                                Text(
+                                                    text = "• $teacher",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        if (classroom.observations.isNotBlank()) {
                                             Spacer(modifier = Modifier.height(4.dp))
 
                                             Text(
-                                                text = "Professores: ${classroom.teachers.joinToString(", ")}",
-                                                style = MaterialTheme.typography.bodySmall
+                                                text = "Observações:",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+
+                                            Text(
+                                                text = classroom.observations,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }

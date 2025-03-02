@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.room.runtime.android)
     implementation(libs.identity.jvm)
+    implementation(libs.androidx.room.ktx)
     kapt(libs.dagger.hilt.android.compiler)
 
     // parser
