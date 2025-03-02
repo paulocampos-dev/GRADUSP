@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,9 +25,7 @@ fun GradesScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Notes") }
-            )
+            GraduspTitleBar(screenTitle = "Notas")
         },
         floatingActionButton = {
             FloatingActionButton(

@@ -53,6 +53,7 @@ import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.UserPreferencesRepository
 import com.prototype.gradusp.data.parser.UspParser
 import com.prototype.gradusp.data.repository.UspDataRepository
+import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 import com.prototype.gradusp.ui.components.config.SchoolSelectionCard
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -115,9 +116,7 @@ fun ConfigScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Configurações") }
-            )
+            GraduspTitleBar(screenTitle = "Configurações")
         },
     ) { padding ->
         Column(

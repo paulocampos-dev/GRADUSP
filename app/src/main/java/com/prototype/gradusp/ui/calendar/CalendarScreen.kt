@@ -39,6 +39,7 @@ import com.prototype.gradusp.ui.calendar.monthly.MonthlyView
 import com.prototype.gradusp.ui.calendar.weekly.WeeklyView
 import com.prototype.gradusp.ui.components.CalendarViewSelector
 import com.prototype.gradusp.ui.components.ExpandableFab
+import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 import com.prototype.gradusp.ui.components.dialogs.AddEventDialog
 import com.prototype.gradusp.ui.components.dialogs.AddLectureDialog
 import com.prototype.gradusp.viewmodel.CalendarViewModel
@@ -120,9 +121,7 @@ fun CalendarScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = { Text("Calendário") }
-                )
+                GraduspTitleBar(screenTitle = "Calendário")
                 CalendarViewSelector(
                     selectedView = selectedView,
                     onViewSelected = { newView ->
