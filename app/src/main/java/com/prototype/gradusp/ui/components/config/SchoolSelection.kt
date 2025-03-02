@@ -77,7 +77,7 @@ fun SchoolSelectionCard(
             // Selection summary
             if (selectedSchools.isEmpty()) {
                 Text(
-                    text = "Todas as unidades serão sincronizadas (pode demorar mais)",
+                    text = "Escolha a quantidade de unidades que deseja obter informações (quanto mais, mais demora)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -29,7 +29,7 @@ class UspParser(private val context: Context) {
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    // Campus mapping similar to Python script
+    // Campus mapping
     private val campusByUnit = mapOf(
         listOf(86, 27, 39, 7, 22, 3, 16, 9, 2, 12, 48, 8, 5, 10, 67, 23, 6, 66, 14, 26, 93, 41, 92, 42, 4, 37, 43, 44, 45, 83, 47, 46, 87, 21, 31, 85, 71, 32, 38, 33) to "São Paulo",
         listOf(98, 94, 60, 89, 81, 59, 96, 91, 17, 58, 95) to "Ribeirão Preto",
@@ -48,9 +48,13 @@ class UspParser(private val context: Context) {
         private val COURSE_NAME_REGEX = Regex("Curso:\\s*(.+)\\s*")
         private val UNIT_CODE_REGEX = Regex("codcg=([1-9]+)")
         private val PERIOD_REGEX = Regex("([0-9]+)º Período Ideal")
+        private val DISCIPLINE_REGEX = Regex("sgldis=([A-Z0-9]+)")
         private val TAG = "UspParser"
     }
 
+    /**
+     * Fetches all campus units and their codes
+     */
     suspend fun fetchCampusUnits(): Map<String, List<String>> = withContext(Dispatchers.IO) {
         val campusMap = mutableMapOf<String, MutableList<String>>()
 
@@ -92,6 +96,44 @@ class UspParser(private val context: Context) {
         }
     }
 
+    /**
+     * Fetches all disciplines directly for a unit (comprehensive approach)
+     */
+    suspend fun fetchAllDisciplinesForUnit(unitCode: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://uspdigital.usp.br/jupiterweb/jupDisciplinaLista?letra=A-Z&tipo=T&codcg=$unitCode"
+            val request = Request.Builder().url(url).build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IOException("Unexpected response $response")
+
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
+
+                // Parse the document similar to Main.kt
+                val disciplineLinks = document.select("a[href~=obterTurma]")
+                val disciplineCodes = mutableSetOf<String>()
+
+                disciplineLinks.forEach { element ->
+                    val href = element.attr("href")
+                    val matchResult = DISCIPLINE_REGEX.find(href)
+                    if (matchResult != null) {
+                        val code = matchResult.groupValues[1]
+                        disciplineCodes.add(code)
+                    }
+                }
+
+                return@withContext disciplineCodes.toList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching all disciplines for unit $unitCode", e)
+            return@withContext emptyList<String>()
+        }
+    }
+
+    /**
+     * Fetches courses for a unit (curriculum-based approach)
+     */
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun fetchCoursesForUnit(unitCode: String): List<Course> = withContext(Dispatchers.IO) {
         try {
@@ -247,6 +289,9 @@ class UspParser(private val context: Context) {
         return periods
     }
 
+    /**
+     * Fetches lecture details given its code
+     */
     suspend fun fetchLecture(lectureCode: String): Lecture? = withContext(Dispatchers.IO) {
         try {
             // First fetch basic info
@@ -623,11 +668,14 @@ class UspParser(private val context: Context) {
         return result
     }
 
+    /**
+     * Get the unit code from its name
+     */
     fun getUnitCode(unitName: String): String? {
         return unitCodes[unitName]
     }
 
-    // Helper class to build Classroom objects
+    // Helper classes for building objects
     private class ClassroomBuilder {
         var code: String = ""
         var startDate: String = ""
@@ -654,7 +702,6 @@ class UspParser(private val context: Context) {
         }
     }
 
-    // Helper class to build VacancyInfo objects
     private class VacancyBuilder {
         var total: Int = 0
         var subscribed: Int = 0
@@ -672,31 +719,4 @@ class UspParser(private val context: Context) {
             )
         }
     }
-
-    // Helper function to compare time strings
-    private fun timeInMinutes(timeString: String): Int {
-        val parts = timeString.split(":")
-        if (parts.size < 2) return 0
-
-        val hours = parts[0].toIntOrNull() ?: 0
-        val minutes = parts[1].toIntOrNull() ?: 0
-        return hours * 60 + minutes
-    }
-
-    // Helper function to check if schedules conflict
-    fun schedulesConflict(schedule1: Schedule, schedule2: Schedule): Boolean {
-        if (schedule1.day != schedule2.day) return false
-
-        val time1Begin = timeInMinutes(schedule1.startTime)
-        val time1End = timeInMinutes(schedule1.endTime)
-        val time2Begin = timeInMinutes(schedule2.startTime)
-        val time2End = timeInMinutes(schedule2.endTime)
-
-        return (time1Begin == time2Begin && time1End == time2End) ||
-                (time1Begin < time2Begin && time2Begin < time1End) ||
-                (time1Begin < time2End && time2End < time1End) ||
-                (time2Begin < time1Begin && time1Begin < time2End) ||
-                (time2Begin < time1End && time1End < time2End)
-    }
 }
-

@@ -2,6 +2,7 @@ package com.prototype.gradusp.data.repository
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -20,11 +21,17 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.prototype.gradusp.data.UserPreferencesRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Singleton
 class UspDataRepository @Inject constructor(
     private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository
@@ -36,6 +43,7 @@ class UspDataRepository @Inject constructor(
         private val LAST_UPDATE_KEY = longPreferencesKey("usp_last_update")
         private val UPDATE_IN_PROGRESS_KEY = booleanPreferencesKey("usp_update_in_progress")
         private val CAMPUS_UNITS_KEY = stringPreferencesKey("campus_units")
+        private const val TAG = "UspDataRepository"
     }
 
     val lastUpdateTime: Flow<Long> = context.dataStore.data
@@ -66,8 +74,10 @@ class UspDataRepository @Inject constructor(
         // Try to load from storage
         val file = File(context.filesDir, "lectures/${code}.json")
         if (file.exists()) {
-            return file.reader().use {
-                gson.fromJson(it, Lecture::class.java)
+            return withContext(Dispatchers.IO) {
+                file.reader().use {
+                    gson.fromJson(it, Lecture::class.java)
+                }
             }
         }
 
@@ -80,9 +90,11 @@ class UspDataRepository @Inject constructor(
         // Try to load from storage
         val file = File(context.filesDir, "courses/${unitCode}.json")
         if (file.exists()) {
-            return file.reader().use {
-                val type = object : TypeToken<List<Course>>() {}.type
-                gson.fromJson(it, type)
+            return withContext(Dispatchers.IO) {
+                file.reader().use {
+                    val type = object : TypeToken<List<Course>>() {}.type
+                    gson.fromJson(it, type)
+                }
             }
         }
 
@@ -125,43 +137,64 @@ class UspDataRepository @Inject constructor(
                 selectedSchools.toList()
             }
 
-            // Track progress through units (20% to 70% of total progress)
-            for ((index, unit) in unitsToProcess.withIndex()) {
-                val unitProgress = 0.2f + (0.5f * (index.toFloat() / unitsToProcess.size.toFloat()))
-                _updateProgress.value = unitProgress
+            // Total progress allocation:
+            // - 20% for setup (0.0-0.2)
+            // - 60% for processing units and their disciplines (0.2-0.8)
+            // - 20% for finishing up (0.8-1.0)
+            val progressPerUnit = 0.6f / unitsToProcess.size.toFloat()
+
+            // Track progress through units
+            for ((unitIndex, unit) in unitsToProcess.withIndex()) {
+                val unitStartProgress = 0.2f + (progressPerUnit * unitIndex)
+                _updateProgress.value = unitStartProgress
 
                 val unitCode = parser.getUnitCode(unit) ?: continue
+                Log.d(TAG, "Processing unit: $unit ($unitCode)")
+
+                // Fetch courses for this unit
                 val courses = parser.fetchCoursesForUnit(unitCode)
 
                 // Save courses
-                File(context.filesDir, "courses/${unitCode}.json").writer().use {
-                    gson.toJson(courses, it)
+                withContext(Dispatchers.IO) {
+                    File(context.filesDir, "courses/${unitCode}.json").writer().use {
+                        gson.toJson(courses, it)
+                    }
                 }
 
-                // Fetch and save a sample of lectures from each course
-                val coursesToProcess = courses.take(if (selectedSchools.isEmpty()) 2 else 5) // More courses if specifically selected
-                for ((courseIndex, course) in coursesToProcess.withIndex()) {
-                    // Update progress for each course
-                    val courseProgress = unitProgress +
-                            (0.5f / unitsToProcess.size) * (courseIndex.toFloat() / coursesToProcess.size.toFloat())
-                    _updateProgress.value = courseProgress
+                // Fetch ALL disciplines for this unit directly
+                val disciplineCodes = parser.fetchAllDisciplinesForUnit(unitCode)
+                Log.d(TAG, "Found ${disciplineCodes.size} disciplines for $unit")
 
-                    for ((_, lectures) in course.periods) {
-                        val lecturesToProcess = lectures.take(if (selectedSchools.isEmpty()) 3 else 6) // More lectures if specifically selected
-                        for ((lectureIndex, lectureInfo) in lecturesToProcess.withIndex()) {
-                            // Fine-grained progress updates for lectures
-                            val lectureProgress = courseProgress +
-                                    (0.5f / unitsToProcess.size / coursesToProcess.size.toFloat()) *
-                                    (lectureIndex.toFloat() / lecturesToProcess.size.toFloat())
-                            _updateProgress.value = Math.min(0.9f, lectureProgress) // Cap at 90%
+                // Process disciplines in parallel batches to avoid overwhelming the network
+                val batchSize = 20
+                val batches = disciplineCodes.chunked(batchSize)
 
-                            val lecture = parser.fetchLecture(lectureInfo.code) ?: continue
+                // Allocate progress for discipline processing within this unit
+                val progressPerBatch = progressPerUnit / batches.size.toFloat()
 
-                            // Save lecture
-                            File(context.filesDir, "lectures/${lecture.code}.json").writer().use {
-                                gson.toJson(lecture, it)
+                for ((batchIndex, batch) in batches.withIndex()) {
+                    val batchProgress = unitStartProgress + (progressPerBatch * batchIndex)
+                    _updateProgress.value = batchProgress
+
+                    // Process each batch concurrently
+                    coroutineScope {
+                        val deferredResults = batch.map { code ->
+                            async(Dispatchers.IO) {
+                                try {
+                                    val lecture = parser.fetchLecture(code)
+                                    if (lecture != null) {
+                                        File(context.filesDir, "lectures/${lecture.code}.json").writer().use {
+                                            gson.toJson(lecture, it)
+                                        }
+                                    }
+                                    true
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error fetching lecture $code", e)
+                                    false
+                                }
                             }
                         }
+                        deferredResults.awaitAll()
                     }
                 }
             }
@@ -180,6 +213,7 @@ class UspDataRepository @Inject constructor(
 
             return true
         } catch (e: Exception) {
+            Log.e(TAG, "Error updating USP data", e)
             // Update failed
             context.dataStore.edit { preferences ->
                 preferences[UPDATE_IN_PROGRESS_KEY] = false
@@ -187,5 +221,88 @@ class UspDataRepository @Inject constructor(
             _updateProgress.value = 0f
             return false
         }
+    }
+
+    /**
+     * Gets the count of available lectures
+     */
+    suspend fun getAvailableLecturesCount(): Int = withContext(Dispatchers.IO) {
+        val lecturesDir = File(context.filesDir, "lectures")
+        if (!lecturesDir.exists()) return@withContext 0
+
+        val lectureFiles = lecturesDir.listFiles { file -> file.extension == "json" }
+        return@withContext lectureFiles?.size ?: 0
+    }
+
+    /**
+     * Gets lectures for a specific unit from local storage
+     */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    suspend fun getLecturesForUnit(unitCode: String): List<Lecture> = withContext(Dispatchers.IO) {
+        val lecturesDir = File(context.filesDir, "lectures")
+        if (!lecturesDir.exists()) return@withContext emptyList()
+
+        // Get course information for this unit to find lecture codes
+        val courses = getCourses(unitCode)
+        val lectureCodes = mutableSetOf<String>()
+
+        courses.forEach { course ->
+            course.periods.forEach { (_, lectureInfos) ->
+                lectureInfos.forEach { lectureInfo ->
+                    lectureCodes.add(lectureInfo.code)
+                }
+            }
+        }
+
+        // Load lectures from storage
+        return@withContext lectureCodes.mapNotNull { code ->
+            val lectureFile = File(lecturesDir, "${code}.json")
+            if (lectureFile.exists()) {
+                try {
+                    lectureFile.reader().use {
+                        gson.fromJson(it, Lecture::class.java)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reading lecture file: ${lectureFile.name}", e)
+                    null
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
+     * Searches for lectures across all stored lectures
+     */
+    suspend fun searchLectures(query: String, limit: Int = 50): List<Lecture> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+
+        val lecturesDir = File(context.filesDir, "lectures")
+        if (!lecturesDir.exists()) return@withContext emptyList()
+
+        val lectureFiles = lecturesDir.listFiles { file -> file.extension == "json" } ?: return@withContext emptyList()
+
+        // For large numbers of lectures, we should avoid loading all into memory
+        // Instead, we'll load them one by one and filter as we go
+        val results = mutableListOf<Lecture>()
+
+        for (file in lectureFiles) {
+            if (results.size >= limit) break
+
+            try {
+                val lecture = file.reader().use {
+                    gson.fromJson(it, Lecture::class.java)
+                }
+
+                if (lecture.matchesSearch(query)) {
+                    results.add(lecture)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading lecture file during search: ${file.name}", e)
+            }
+        }
+
+        return@withContext results
     }
 }
