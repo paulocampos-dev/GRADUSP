@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -22,12 +23,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,9 +43,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.eventColors
+import com.prototype.gradusp.ui.components.ScheduleSelector
 import com.prototype.gradusp.ui.components.base.DialogActions
 import com.prototype.gradusp.ui.components.base.GraduspDialog
 import com.prototype.gradusp.ui.components.base.LabeledTextField
@@ -136,182 +142,222 @@ fun EventDetailsDialog(
     var location by remember { mutableStateOf(event.location ?: "") }
     var notes by remember { mutableStateOf(event.notes ?: "") }
     var selectedColor by remember { mutableStateOf(event.color) }
+    var occurrences by remember { mutableStateOf(event.occurrences) }
+
     var showColorPicker by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
-    GraduspDialog(
-        title = "Editar Evento",
-        onDismiss = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        actions = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Delete button
-                IconButton(
-                    onClick = { showDeleteConfirmation = true },
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Excluir Evento",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                // Save/Cancel buttons
-                Row {
-                    DialogActions(
-                        onCancel = onDismiss,
-                        onConfirm = {
-                            val updatedEvent = event.copy(
-                                title = title,
-                                color = selectedColor,
-                                teacher = teacher.takeIf { it.isNotBlank() },
-                                location = location.takeIf { it.isNotBlank() },
-                                notes = notes.takeIf { it.isNotBlank() }
-                            )
-                            onSave(updatedEvent)
-                        },
-                        confirmText = "Salvar"
-                    )
-                }
-            }
-        }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
     ) {
-        Column(
-            modifier = Modifier.verticalScroll(rememberScrollState())
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
-            // Header with color indicator
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .background(selectedColor, CircleShape)
-                        .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.md))
-
-            // Title field
-            LabeledTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = "Nome do evento",
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.md))
-
-            // Occurrences section
-            OccurrencesSection(event = event)
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.md))
-
-            // Teacher field
-            LabeledTextField(
-                value = teacher,
-                onValueChange = { teacher = it },
-                label = "Professor",
-                icon = Icons.Default.Person
-            )
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.sm))
-
-            // Location field
-            LabeledTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = "Local/Sala",
-                icon = Icons.Default.LocationOn
-            )
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.sm))
-
-            // Notes field
-            LabeledTextField(
-                value = notes,
-                onValueChange = { notes = it },
-                label = "Anotações",
-                icon = Icons.Default.Edit,
-                singleLine = false,
-                minLines = 3
-            )
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.md))
-
-            // Color picker section
-            Column {
+                // Dialog title
                 Text(
-                    text = "Cor do evento",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
+                    text = "Edit Event",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Header with color indicator
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(selectedColor, CircleShape)
+                            .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(GraduspSpacing.md))
+
+                // Title field
+                LabeledTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = "Event name",
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(GraduspSpacing.md))
+
+                // Schedule selector (replaces OccurrencesSection)
+                ScheduleSelector(
+                    occurrences = occurrences,
+                    onOccurrencesChanged = { occurrences = it }
+                )
+
+                Spacer(modifier = Modifier.height(GraduspSpacing.md))
+
+                // Teacher field
+                LabeledTextField(
+                    value = teacher,
+                    onValueChange = { teacher = it },
+                    label = "Teacher",
+                    icon = Icons.Default.Person
                 )
 
                 Spacer(modifier = Modifier.height(GraduspSpacing.sm))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    eventColors.forEach { color ->
+                // Location field
+                LabeledTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = "Location/Room",
+                    icon = Icons.Default.LocationOn
+                )
+
+                Spacer(modifier = Modifier.height(GraduspSpacing.sm))
+
+                // Notes field
+                LabeledTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = "Notes",
+                    icon = Icons.Default.Edit,
+                    singleLine = false,
+                    minLines = 3
+                )
+
+                Spacer(modifier = Modifier.height(GraduspSpacing.md))
+
+                // Color picker section
+                Column {
+                    Text(
+                        text = "Event color",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(GraduspSpacing.sm))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        eventColors.forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (selectedColor == color) 3.dp else 1.dp,
+                                        color = if (selectedColor == color)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            Color.Black.copy(alpha = 0.2f),
+                                        shape = CircleShape
+                                    )
+                                    .padding(4.dp)
+                                    .clip(CircleShape)
+                                    .clickable { selectedColor = color }
+                            )
+                        }
+
+                        // Custom color button
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(color)
-                                .border(
-                                    width = if (selectedColor == color) 3.dp else 1.dp,
-                                    color = if (selectedColor == color)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        Color.Black.copy(alpha = 0.2f),
-                                    shape = CircleShape
-                                )
-                                .padding(4.dp)
-                                .clip(CircleShape)
-                                .clickable { selectedColor = color }
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
+                                .clickable { showColorPicker = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "+",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Delete button
+                    TextButton(
+                        onClick = { showDeleteConfirmation = true },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
                         )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Delete")
                     }
 
-                    // Custom color button
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
-                            .clickable { showColorPicker = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "+",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                    // Save/Cancel buttons
+                    Row {
+                        TextButton(onClick = onDismiss) {
+                            Text("Cancel")
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                val updatedEvent = event.copy(
+                                    title = title,
+                                    color = selectedColor,
+                                    teacher = teacher.takeIf { it.isNotBlank() },
+                                    location = location.takeIf { it.isNotBlank() },
+                                    notes = notes.takeIf { it.isNotBlank() },
+                                    occurrences = occurrences
+                                )
+                                onSave(updatedEvent)
+                            }
+                        ) {
+                            Text("Save")
+                        }
                     }
                 }
             }
+        }
 
-            // Show color picker dialog when needed
-            if (showColorPicker) {
-                ColorPickerDialog(
-                    currentColor = selectedColor,
-                    onColorSelected = {
-                        selectedColor = it
-                        showColorPicker = false
-                    },
-                    onDismiss = { showColorPicker = false }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.sm))
+        // Show color picker dialog when needed
+        if (showColorPicker) {
+            ColorPickerDialog(
+                currentColor = selectedColor,
+                onColorSelected = {
+                    selectedColor = it
+                    showColorPicker = false
+                },
+                onDismiss = { showColorPicker = false }
+            )
         }
     }
 
