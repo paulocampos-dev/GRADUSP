@@ -1,5 +1,7 @@
 package com.prototype.gradusp.ui.calendar.monthly
 
+import com.prototype.gradusp.data.model.Event
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
+import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
 import com.prototype.gradusp.utils.DateTimeUtils
 import com.prototype.gradusp.utils.EventProcessingUtil
 import com.prototype.gradusp.viewmodel.CalendarViewModel
@@ -34,6 +37,7 @@ fun MonthlyView(
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val events by viewModel.events.collectAsState()
     var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
 
     // Memoized grid cells computation
     val daysInGrid by remember(selectedMonth) {
@@ -99,9 +103,24 @@ fun MonthlyView(
             events = dayEvents,
             onDismiss = { selectedDay = null },
             onEventClick = { event ->
-                // Navigate to event details or edit screen
-                viewModel.updateEvent(event)
+                selectedEvent = event
                 selectedDay = null
+            }
+        )
+    }
+
+    // Event details dialog
+    selectedEvent?.let { event ->
+        EventDetailsDialog(
+            event = event,
+            onDismiss = { selectedEvent = null },
+            onSave = { updatedEvent ->
+                viewModel.updateEvent(updatedEvent)
+                selectedEvent = null
+            },
+            onDelete = { eventToDelete ->
+                viewModel.deleteEvent(eventToDelete)
+                selectedEvent = null
             }
         )
     }

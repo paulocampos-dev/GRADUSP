@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -21,6 +23,7 @@ class UserPreferencesRepository @Inject constructor (
     companion object PreferencesKeys {
         val ANIMATION_SPEED = intPreferencesKey("animation_speed")
         val INVERT_SWIPE_DIRECTION = booleanPreferencesKey("invert_swipe_direction")
+        val SELECTED_SCHOOLS = stringSetPreferencesKey("selected_schools")
     }
 
     val animationSpeedFlow: Flow<AnimationSpeed> = context.dataStore.data
@@ -48,6 +51,18 @@ class UserPreferencesRepository @Inject constructor (
             preferences[PreferencesKeys.INVERT_SWIPE_DIRECTION] ?: false
         }
 
+    val selectedSchoolsFlow: Flow<Set<String>> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[PreferencesKeys.SELECTED_SCHOOLS] ?: emptySet()
+        }
+
     suspend fun updateAnimationSpeed(speed: AnimationSpeed) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.ANIMATION_SPEED] = speed.ordinal
@@ -57,6 +72,12 @@ class UserPreferencesRepository @Inject constructor (
     suspend fun updateSwipeDirection(invert: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.INVERT_SWIPE_DIRECTION] = invert
+        }
+    }
+
+    suspend fun updateSelectedSchools(schools: Set<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SELECTED_SCHOOLS] = schools
         }
     }
 }

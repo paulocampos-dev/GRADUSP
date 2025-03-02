@@ -1,34 +1,8 @@
-// Create a new file: app/src/main/java/com/prototype/gradusp/data/repository/UspDataRepository.kt
 package com.prototype.gradusp.data.repository
 
 import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.prototype.gradusp.data.dataStore
@@ -37,17 +11,24 @@ import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.parser.UspParser
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.prototype.gradusp.data.UserPreferencesRepository
 import java.io.File
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-class UspDataRepository( private val context: Context ) {
+class UspDataRepository @Inject constructor(
+    private val context: Context,
+    private val userPreferencesRepository: UserPreferencesRepository
+) {
     private val parser = UspParser(context)
     private val gson = Gson()
 
@@ -62,6 +43,10 @@ class UspDataRepository( private val context: Context ) {
 
     val isUpdateInProgress: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[UPDATE_IN_PROGRESS_KEY] ?: false }
+
+    // Add progress tracking
+    private val _updateProgress = MutableStateFlow(0f)
+    val updateProgress: StateFlow<Float> = _updateProgress
 
     suspend fun getCampusUnits(): Map<String, List<String>> {
         // Try to load from preferences first
@@ -108,25 +93,43 @@ class UspDataRepository( private val context: Context ) {
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun updateUspData(): Boolean {
         try {
+            // Reset progress
+            _updateProgress.value = 0f
+
             // Set update in progress flag
             context.dataStore.edit { preferences ->
                 preferences[UPDATE_IN_PROGRESS_KEY] = true
             }
 
             // Fetch and store campus and units
+            _updateProgress.value = 0.1f
             val campusUnits = parser.fetchCampusUnits()
             context.dataStore.edit { preferences ->
                 preferences[CAMPUS_UNITS_KEY] = gson.toJson(campusUnits)
             }
+            _updateProgress.value = 0.2f
 
             // Create directories for storage
             File(context.filesDir, "courses").mkdirs()
             File(context.filesDir, "lectures").mkdirs()
 
-            // Fetch and store courses for each unit
-            // (limiting to a few units to prevent excessive network usage)
-            val sampleUnits = campusUnits.values.flatten().take(3) // Just 3 units for example
-            for (unit in sampleUnits) {
+            // Get selected schools from preferences
+            val selectedSchools = userPreferencesRepository.selectedSchoolsFlow.first()
+
+            // Determine which units to process
+            val unitsToProcess = if (selectedSchools.isEmpty()) {
+                // Process a sample if none selected (to avoid processing everything)
+                campusUnits.values.flatten().take(3)
+            } else {
+                // Process only selected schools
+                selectedSchools.toList()
+            }
+
+            // Track progress through units (20% to 70% of total progress)
+            for ((index, unit) in unitsToProcess.withIndex()) {
+                val unitProgress = 0.2f + (0.5f * (index.toFloat() / unitsToProcess.size.toFloat()))
+                _updateProgress.value = unitProgress
+
                 val unitCode = parser.getUnitCode(unit) ?: continue
                 val courses = parser.fetchCoursesForUnit(unitCode)
 
@@ -136,9 +139,22 @@ class UspDataRepository( private val context: Context ) {
                 }
 
                 // Fetch and save a sample of lectures from each course
-                for (course in courses.take(2)) { // Just 2 courses per unit
+                val coursesToProcess = courses.take(if (selectedSchools.isEmpty()) 2 else 5) // More courses if specifically selected
+                for ((courseIndex, course) in coursesToProcess.withIndex()) {
+                    // Update progress for each course
+                    val courseProgress = unitProgress +
+                            (0.5f / unitsToProcess.size) * (courseIndex.toFloat() / coursesToProcess.size.toFloat())
+                    _updateProgress.value = courseProgress
+
                     for ((_, lectures) in course.periods) {
-                        for (lectureInfo in lectures.take(3)) { // Just 3 lectures per course
+                        val lecturesToProcess = lectures.take(if (selectedSchools.isEmpty()) 3 else 6) // More lectures if specifically selected
+                        for ((lectureIndex, lectureInfo) in lecturesToProcess.withIndex()) {
+                            // Fine-grained progress updates for lectures
+                            val lectureProgress = courseProgress +
+                                    (0.5f / unitsToProcess.size / coursesToProcess.size.toFloat()) *
+                                    (lectureIndex.toFloat() / lecturesToProcess.size.toFloat())
+                            _updateProgress.value = Math.min(0.9f, lectureProgress) // Cap at 90%
+
                             val lecture = parser.fetchLecture(lectureInfo.code) ?: continue
 
                             // Save lecture
@@ -150,11 +166,17 @@ class UspDataRepository( private val context: Context ) {
                 }
             }
 
+            // Final progress before completing
+            _updateProgress.value = 0.95f
+
             // Update last update time
             context.dataStore.edit { preferences ->
                 preferences[LAST_UPDATE_KEY] = Date().time
                 preferences[UPDATE_IN_PROGRESS_KEY] = false
             }
+
+            // Complete progress
+            _updateProgress.value = 1.0f
 
             return true
         } catch (e: Exception) {
@@ -162,105 +184,8 @@ class UspDataRepository( private val context: Context ) {
             context.dataStore.edit { preferences ->
                 preferences[UPDATE_IN_PROGRESS_KEY] = false
             }
+            _updateProgress.value = 0f
             return false
         }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-@Composable
-fun UspDataUpdateSection(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val uspDataRepository = remember { UspDataRepository(context) }
-    val coroutineScope = rememberCoroutineScope()
-
-    // We'll manually collect the flows since we're not using a ViewModel
-    var lastUpdateTime by remember { mutableStateOf(0L) }
-    var isUpdateInProgress by remember { mutableStateOf(false) }
-    var updateResult by remember { mutableStateOf<String?>(null) }
-
-    // Collect the flows
-    LaunchedEffect(uspDataRepository) {
-        uspDataRepository.lastUpdateTime.collect { lastUpdateTime = it }
-    }
-
-    LaunchedEffect(uspDataRepository) {
-        uspDataRepository.isUpdateInProgress.collect { isUpdateInProgress = it }
-    }
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Dados da USP",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // Last update time
-        if (lastUpdateTime > 0) {
-            val lastUpdateDate = Date(lastUpdateTime)
-            val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
-
-            Text(
-                text = "Última atualização: ${formatter.format(lastUpdateDate)}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Update button
-        Button(
-            onClick = {
-                updateResult = null
-                coroutineScope.launch {
-                    val success = uspDataRepository.updateUspData()
-                    updateResult = if (success) {
-                        "Dados atualizados com sucesso!"
-                    } else {
-                        "Falha ao atualizar dados. Tente novamente."
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isUpdateInProgress
-        ) {
-            if (isUpdateInProgress) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            Text(
-                text = if (isUpdateInProgress) "Atualizando..." else "Atualizar Dados da USP"
-            )
-        }
-
-        // Update result message
-        updateResult?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (it.startsWith("Falha"))
-                    MaterialTheme.colorScheme.error
-                else
-                    MaterialTheme.colorScheme.primary
-            )
-        }
-
-        // Info text
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Atualizar os dados da USP permite adicionar matérias mais rapidamente, sem precisar buscar online toda vez.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }

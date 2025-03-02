@@ -25,6 +25,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -49,8 +50,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.prototype.gradusp.data.AnimationSpeed
+import com.prototype.gradusp.data.UserPreferencesRepository
 import com.prototype.gradusp.data.parser.UspParser
 import com.prototype.gradusp.data.repository.UspDataRepository
+import com.prototype.gradusp.ui.components.config.SchoolSelectionCard
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -68,14 +71,22 @@ fun ConfigScreen(
     val settingsViewModel : SettingsViewModel = hiltViewModel()
     val animationSpeedFlow = settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MEDIUM)
     val invertSwipeDirection = settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
+    val selectedSchools = settingsViewModel.selectedSchools.collectAsState(initial = emptySet())
     val coroutineScope = rememberCoroutineScope()
 
     // USP Data Repository setup
     val context = LocalContext.current
-    val uspDataRepository = remember { UspDataRepository(context) }
+    val userPreferencesRepository = remember { UserPreferencesRepository(context) }
+    val uspDataRepository = remember { UspDataRepository(context, userPreferencesRepository) }
+
     var lastUpdateTime by remember { mutableStateOf(0L) }
     var isUpdateInProgress by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<String?>(null) }
+    var updateProgress by remember { mutableStateOf(0f) }  // New state for progress tracking
+
+    // State for campus/schools data
+    var campusMap by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var isLoadingCampusData by remember { mutableStateOf(false) }
 
     // Collect flows
     LaunchedEffect(uspDataRepository) {
@@ -84,6 +95,22 @@ fun ConfigScreen(
 
     LaunchedEffect(uspDataRepository) {
         uspDataRepository.isUpdateInProgress.collect { isUpdateInProgress = it }
+    }
+
+    LaunchedEffect(uspDataRepository) {
+        uspDataRepository.updateProgress.collect { updateProgress = it }
+    }
+
+    // Load campus data
+    LaunchedEffect(Unit) {
+        isLoadingCampusData = true
+        try {
+            campusMap = uspDataRepository.getCampusUnits()
+        } catch (e: Exception) {
+            Log.e("ConfigScreen", "Error loading campus data", e)
+        } finally {
+            isLoadingCampusData = false
+        }
     }
 
     Scaffold(
@@ -150,95 +177,190 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.padding(16.dp))
 
-            // Add parser test section
-            Text(
-                text = "Teste do Parser USP",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            HorizontalDivider()
-
-            Spacer(modifier = Modifier.padding(16.dp))
-
-            // USP Data section
             Text(
                 text = "Dados da USP",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Last update time
-            if (lastUpdateTime > 0) {
-                val lastUpdateDate = Date(lastUpdateTime)
-                val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
-
-                Text(
-                    text = "Última atualização: ${formatter.format(lastUpdateDate)}",
-                    style = MaterialTheme.typography.bodyMedium
+            // School selection card
+            if (isLoadingCampusData) {
+                // Show loading indicator while campus data is being loaded
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Carregando unidades...",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else if (campusMap.isNotEmpty()) {
+                SchoolSelectionCard(
+                    campusMap = campusMap,
+                    selectedSchools = selectedSchools.value,
+                    onSelectionChanged = { newSelection ->
+                        settingsViewModel.updateSelectedSchools(newSelection)
+                    },
+                    isLoading = isUpdateInProgress
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Update button
-            Button(
-                onClick = {
-                    updateResult = null
-                    coroutineScope.launch {
-                        val success = uspDataRepository.updateUspData()
-                        updateResult = if (success) {
-                            "Dados atualizados com sucesso!"
-                        } else {
-                            "Falha ao atualizar dados. Tente novamente."
+            // USP Data update card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Atualização de Dados",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    // Last update time
+                    if (lastUpdateTime > 0) {
+                        val lastUpdateDate = Date(lastUpdateTime)
+                        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+
+                        Text(
+                            text = "Última atualização: ${formatter.format(lastUpdateDate)}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Progress indicator for updates
+                    if (isUpdateInProgress) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Atualizando dados da USP...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                // Show percentage
+                                Text(
+                                    text = "${(updateProgress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Determinate progress indicator
+                            LinearProgressIndicator(
+                                progress = { updateProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUpdateInProgress
-            ) {
-                if (isUpdateInProgress) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+
+                    // Status message based on selected schools
+                    if (!isUpdateInProgress) {
+                        val selectedCount = selectedSchools.value.size
+
+                        if (selectedCount > 0) {
+                            Text(
+                                text = "Serão sincronizadas $selectedCount ${if (selectedCount == 1) "unidade" else "unidades"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                text = "Nenhuma unidade específica selecionada. Amostra de dados será atualizada.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Update button
+                    Button(
+                        onClick = {
+                            updateResult = null
+                            updateProgress = 0f
+                            coroutineScope.launch {
+                                val success = uspDataRepository.updateUspData()
+                                updateResult = if (success) {
+                                    "Dados atualizados com sucesso!"
+                                } else {
+                                    "Falha ao atualizar dados. Tente novamente."
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isUpdateInProgress
+                    ) {
+                        if (isUpdateInProgress) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        Text(
+                            text = if (isUpdateInProgress) "Atualizando..." else
+                                if (selectedSchools.value.isEmpty()) "Atualizar Amostra de Dados"
+                                else "Atualizar Dados Selecionados"
+                        )
+                    }
+
+                    // Update result message
+                    updateResult?.let {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (it.startsWith("Falha"))
+                                MaterialTheme.colorScheme.error
+                            else
+                                MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Info text
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (selectedSchools.value.isEmpty())
+                            "Selecione unidades específicas para atualizar apenas os dados relevantes e reduzir o tempo de sincronização."
+                        else
+                            "Atualizar os dados da USP permite adicionar matérias mais rapidamente, sem precisar buscar online toda vez.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                 }
-
-                Text(
-                    text = if (isUpdateInProgress) "Atualizando..." else "Atualizar Dados da USP"
-                )
             }
-
-            // Update result message
-            updateResult?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (it.startsWith("Falha"))
-                        MaterialTheme.colorScheme.error
-                    else
-                        MaterialTheme.colorScheme.primary
-                )
-            }
-
-            // Info text
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Atualizar os dados da USP permite adicionar matérias mais rapidamente, sem precisar buscar online toda vez.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
         }
     }
 }
-
-
 
 @Composable
 fun AnimationSpeedDropdown(

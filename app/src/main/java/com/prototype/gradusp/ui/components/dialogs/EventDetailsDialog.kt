@@ -18,12 +18,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,7 +54,8 @@ import com.prototype.gradusp.utils.DateTimeUtils
 fun EventDetailsDialog(
     event: Event,
     onDismiss: () -> Unit,
-    onSave: (Event) -> Unit
+    onSave: (Event) -> Unit,
+    onDelete: (Event) -> Unit
 ) {
     var title by remember { mutableStateOf(event.title) }
     var teacher by remember { mutableStateOf(event.teacher ?: "") }
@@ -60,26 +63,48 @@ fun EventDetailsDialog(
     var notes by remember { mutableStateOf(event.notes ?: "") }
     var selectedColor by remember { mutableStateOf(event.color) }
     var showColorPicker by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     GraduspDialog(
         title = "Editar Evento",
         onDismiss = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         actions = {
-            DialogActions(
-                onCancel = onDismiss,
-                onConfirm = {
-                    val updatedEvent = event.copy(
-                        title = title,
-                        color = selectedColor,
-                        teacher = teacher.takeIf { it.isNotBlank() },
-                        location = location.takeIf { it.isNotBlank() },
-                        notes = notes.takeIf { it.isNotBlank() }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Delete button
+                IconButton(
+                    onClick = { showDeleteConfirmation = true },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Excluir Evento",
+                        tint = MaterialTheme.colorScheme.error
                     )
-                    onSave(updatedEvent)
-                },
-                confirmText = "Salvar"
-            )
+                }
+
+                // Save/Cancel buttons
+                Row {
+                    DialogActions(
+                        onCancel = onDismiss,
+                        onConfirm = {
+                            val updatedEvent = event.copy(
+                                title = title,
+                                color = selectedColor,
+                                teacher = teacher.takeIf { it.isNotBlank() },
+                                location = location.takeIf { it.isNotBlank() },
+                                notes = notes.takeIf { it.isNotBlank() }
+                            )
+                            onSave(updatedEvent)
+                        },
+                        confirmText = "Salvar"
+                    )
+                }
+            }
         }
     ) {
         Column(
@@ -167,6 +192,18 @@ fun EventDetailsDialog(
 
             Spacer(modifier = Modifier.height(GraduspSpacing.sm))
         }
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            eventTitle = event.title,
+            onDismiss = { showDeleteConfirmation = false },
+            onConfirmDelete = {
+                onDelete(event)
+                showDeleteConfirmation = false
+            }
+        )
     }
 }
 
@@ -264,6 +301,41 @@ fun ColorPickerSection(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    eventTitle: String,
+    onDismiss: () -> Unit,
+    onConfirmDelete: () -> Unit
+) {
+    GraduspDialog(
+        title = "Excluir evento",
+        onDismiss = onDismiss,
+        actions = {
+            DialogActions(
+                onCancel = onDismiss,
+                onConfirm = onConfirmDelete,
+                cancelText = "Cancelar",
+                confirmText = "Excluir"
+            )
+        }
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Text(
+                text = "Você tem certeza que deseja excluir o evento \"$eventTitle\"?",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Esta ação não pode ser desfeita.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
         }
     }
 }

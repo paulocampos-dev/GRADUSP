@@ -31,8 +31,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideUspDataRepository(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        userPreferencesRepository: UserPreferencesRepository
     ): UspDataRepository {
-        return UspDataRepository(context)
+        return UspDataRepository(context, userPreferencesRepository)
     }
 }

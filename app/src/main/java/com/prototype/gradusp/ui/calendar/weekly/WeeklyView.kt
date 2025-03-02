@@ -98,6 +98,10 @@ fun WeeklyView(
             onSave = { updatedEvent ->
                 viewModel.updateEvent(updatedEvent)
                 selectedEvent = null
+            },
+            onDelete = { eventToDelete ->
+                viewModel.deleteEvent(eventToDelete)
+                selectedEvent = null
             }
         )
     }
