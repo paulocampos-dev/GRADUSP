@@ -121,6 +121,25 @@ class UspDataRepository @Inject constructor(
             }
             _updateProgress.value = 0.2f
 
+            // CLEANUP STEP: Delete existing data directories and recreate them
+            withContext(Dispatchers.IO) {
+                // Delete courses directory
+                val coursesDir = File(context.filesDir, "courses")
+                if (coursesDir.exists()) {
+                    coursesDir.deleteRecursively()
+                }
+                coursesDir.mkdirs()
+
+                // Delete lectures directory
+                val lecturesDir = File(context.filesDir, "lectures")
+                if (lecturesDir.exists()) {
+                    lecturesDir.deleteRecursively()
+                }
+                lecturesDir.mkdirs()
+
+                Log.d("UspParser", "Cleaned up existing data directories")
+            }
+
             // Create directories for storage
             File(context.filesDir, "courses").mkdirs()
             File(context.filesDir, "lectures").mkdirs()

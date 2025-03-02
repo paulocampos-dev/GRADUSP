@@ -1,5 +1,6 @@
 package com.prototype.gradusp.utils
 
+import android.util.Log
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -92,15 +93,22 @@ object DateTimeUtils {
     }
 
     fun convertDayStringToDayOfWeek(dayString: String): DayOfWeek {
-        return when (dayString.lowercase()) {
+        // First, clean up the input string - removing non-essential parts
+        val cleanedDay = dayString.lowercase().trim().takeWhile { !it.isWhitespace() }.take(3)
+
+        return when (cleanedDay) {
             "seg" -> DayOfWeek.MONDAY
             "ter" -> DayOfWeek.TUESDAY
             "qua" -> DayOfWeek.WEDNESDAY
             "qui" -> DayOfWeek.THURSDAY
             "sex" -> DayOfWeek.FRIDAY
-            "sab" -> DayOfWeek.SATURDAY
+            "sab", "sáb" -> DayOfWeek.SATURDAY
             "dom" -> DayOfWeek.SUNDAY
-            else -> throw IllegalArgumentException("Unknown day string: $dayString")
+            else -> {
+                // Log the problematic day string and skip this entry
+                Log.w("DateTimeUtils", "Could not parse day string: $dayString, cleaned: $cleanedDay")
+                throw IllegalArgumentException("Unknown day string: $dayString")
+            }
         }
     }
 }

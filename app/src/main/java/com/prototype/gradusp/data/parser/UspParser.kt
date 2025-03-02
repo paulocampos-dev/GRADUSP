@@ -366,9 +366,28 @@ class UspParser(private val context: Context) {
                         "Outro"
                     }
 
-                    val disciplineMatch = Regex("Disciplina:\\s+([A-Z0-9\\s]{7})\\s-\\s(.+)").find(rows[2].text())
-                    if (disciplineMatch != null) {
-                        name = disciplineMatch.groupValues[2].trim()
+                    // Try to extract the lecture name using a simpler approach
+                    val disciplineText = rows[2].text().trim()
+                    if (disciplineText.contains("Disciplina:")) {
+                        // Extract everything after "Disciplina:"
+                        name = disciplineText.substringAfter("Disciplina:").trim()
+
+                        // If the name contains the code (usually formatted as "CODE - NAME")
+                        if (name.contains(lectureCode)) {
+                            // Extract the part after the code
+                            val afterCode = name.substringAfter(lectureCode).trim()
+                            if (afterCode.startsWith("-")) {
+                                name = afterCode.substring(1).trim()
+                            } else if (afterCode.isNotEmpty()) {
+                                name = afterCode
+                            }
+                        }
+
+                        // Fallback - use your main.kt parser results if available
+                        if (name.isBlank()) {
+                            Log.d("UspParser", "Using lecture code as name for $lectureCode")
+                            name = lectureCode
+                        }
                     }
                 }
             }
@@ -490,6 +509,26 @@ class UspParser(private val context: Context) {
         var currentStartTime: String? = null
         var currentEndTime: String? = null
         var currentTeachers = mutableListOf<String>()
+
+        // Skip header row
+        val rows = table.select("tr").drop(1) // Skip the first row which is often a header
+
+        for (row in rows) {
+            val cells = row.select("td")
+            if (cells.size < 2) continue
+
+            val day = cells[0].text().trim()
+            val startTime = cells[1].text().trim()
+            val endTime = if (cells.size > 2) cells[2].text().trim() else ""
+            val teacher = if (cells.size > 3) cells[3].text().trim() else ""
+
+            // Skip any row that might be a header
+            if (day.equals("Horário", ignoreCase = true) ||
+                day.equals("Dia", ignoreCase = true) ||
+                startTime.equals("Início", ignoreCase = true)) {
+                continue
+            }
+        }
 
         table.select("tr").forEach { row ->
             val cells = row.select("td")
