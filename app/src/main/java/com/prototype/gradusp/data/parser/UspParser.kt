@@ -5,6 +5,9 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,6 +42,13 @@ class UspParser(private val context: Context) {
 
     private val unitCodes = mutableMapOf<String, String>()
 
+    companion object {
+        private val CODE_REGEX = Regex("codcur=(.+?)&codhab=(.+?)(&|$)")
+        private val COURSE_NAME_REGEX = Regex("Curso:\\s*(.+)\\s*")
+        private val UNIT_CODE_REGEX = Regex("codcg=([1-9]+)")
+        private val PERIOD_REGEX = Regex("([0-9]+)º Período Ideal")
+    }
+
     suspend fun fetchCampusUnits(): Map<String, List<String>> = withContext(Dispatchers.IO) {
         val campusMap = mutableMapOf<String, MutableList<String>>()
 
@@ -50,7 +60,8 @@ class UspParser(private val context: Context) {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected response $response")
 
-                val document = Jsoup.parse(response.body?.string() ?: "")
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
                 val links = document.select("a[href~=jupColegiadoMenu]")
 
                 links.forEach { link ->
@@ -67,10 +78,7 @@ class UspParser(private val context: Context) {
                             codes.contains(unitCodeInt)
                         }?.value ?: "Outro"
 
-                        if (!campusMap.containsKey(campus)) {
-                            campusMap[campus] = mutableListOf()
-                        }
-                        campusMap[campus]?.add(unitName)
+                        campusMap.getOrPut(campus) { mutableListOf() }.add(unitName)
                     }
                 }
             }
@@ -82,12 +90,9 @@ class UspParser(private val context: Context) {
         }
     }
 
-
     // COURSES PARSERS
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun fetchCoursesForUnit(unitCode: String): List<Course> = withContext(Dispatchers.IO) {
-        val courses = mutableListOf<Course>()
-
         try {
             val request = Request.Builder()
                 .url("https://uspdigital.usp.br/jupiterweb/jupCursoLista?tipo=N&codcg=$unitCode")
@@ -96,22 +101,23 @@ class UspParser(private val context: Context) {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected response $response")
 
-                val document = Jsoup.parse(response.body?.string() ?: "")
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
                 val links = document.select("a[href~=listarGradeCurricular]")
 
-                links.forEach { link ->
-                    val courseLink = link.attr("href")
-                    val periodElement = link.parent()?.parent()?.children()?.lastOrNull()
-                    val period = periodElement?.text()?.trim() ?: ""
-
-                    val courseDetails = fetchCourseDetails(courseLink, period)
-                    if (courseDetails != null) {
-                        courses.add(courseDetails)
+                // Fetch course details concurrently
+                val coursesDeferred = coroutineScope {
+                    links.map { link ->
+                        async {
+                            val courseLink = link.attr("href")
+                            val periodElement = link.parent()?.parent()?.children()?.lastOrNull()
+                            val period = periodElement?.text()?.trim() ?: ""
+                            fetchCourseDetails(courseLink, period)
+                        }
                     }
                 }
+                return@withContext coursesDeferred.awaitAll().filterNotNull()
             }
-
-            return@withContext courses
         } catch (e: Exception) {
             Log.e("UspParser", "Error fetching courses for unit $unitCode", e)
             return@withContext emptyList<Course>()
@@ -119,8 +125,7 @@ class UspParser(private val context: Context) {
     }
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    private suspend fun fetchCourseDetails(courseLink: String, period: String): Course? = withContext(
-        Dispatchers.IO) {
+    private suspend fun fetchCourseDetails(courseLink: String, period: String): Course? = withContext(Dispatchers.IO) {
         try {
             val fullUrl = "https://uspdigital.usp.br/jupiterweb/$courseLink"
             val request = Request.Builder()
@@ -130,22 +135,20 @@ class UspParser(private val context: Context) {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected response $response")
 
-                val document = Jsoup.parse(response.body?.string() ?: "")
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
 
                 // Extract course information
-                val codeRegex = Regex("codcur=(.+?)&codhab=(.+?)(&|$)")
-                val codeMatch = codeRegex.find(fullUrl)
+                val codeMatch = CODE_REGEX.find(fullUrl)
                 val code = if (codeMatch != null) "${codeMatch.groupValues[1]}-${codeMatch.groupValues[2]}" else ""
 
-                val courseNameRegex = Regex("Curso:\\s*(.+)\\s*")
                 val courseText = document.text()
-                val courseNameMatches = courseNameRegex.findAll(courseText)
-                val name = courseNameMatches.map { it.groupValues[1] }.joinToString(" - ")
+                val nameMatches = COURSE_NAME_REGEX.findAll(courseText)
+                val name = nameMatches.map { it.groupValues[1] }.joinToString(" - ")
 
-                val unitCodeRegex = Regex("codcg=([1-9]+)")
-                val unitCodeMatch = unitCodeRegex.find(fullUrl)
-                val unitCode = unitCodeMatch?.groupValues?.get(1) ?: ""
-                val unit = unitCodes.entries.find { it.value == unitCode }?.key ?: ""
+                val unitCodeMatch = UNIT_CODE_REGEX.find(fullUrl)
+                val unitCodeVal = unitCodeMatch?.groupValues?.get(1) ?: ""
+                val unit = unitCodes.entries.find { it.value == unitCodeVal }?.key ?: ""
 
                 // Parse periods and lectures
                 val periods = mutableMapOf<String, List<LectureInfo>>()
@@ -176,8 +179,6 @@ class UspParser(private val context: Context) {
             "Disciplinas Optativas Livres" to "optativa_livre"
         )
 
-        val periodRegex = Regex("([0-9]+)º Período Ideal")
-
         var currentType = ""
         var currentPeriod = ""
 
@@ -191,12 +192,10 @@ class UspParser(private val context: Context) {
             }
 
             // Check if this is a period header
-            val periodMatch = periodRegex.find(rowText)
+            val periodMatch = PERIOD_REGEX.find(rowText)
             if (periodMatch != null) {
                 currentPeriod = periodMatch.groupValues[1]
-                if (!periods.containsKey(currentPeriod)) {
-                    periods[currentPeriod] = mutableListOf()
-                }
+                periods.getOrPut(currentPeriod) { mutableListOf() }
                 return@forEach
             }
 
@@ -219,26 +218,22 @@ class UspParser(private val context: Context) {
                     val lastLecture = periods[currentPeriod]?.lastOrNull()
 
                     if (lastLecture != null) {
-                        when(secondCellText) {
+                        when (secondCellText) {
                             "Requisito fraco" -> {
                                 val newReqWeak = lastLecture.reqWeak.toMutableList()
                                 newReqWeak.add(firstCellText.substring(0, 7))
-
-                                // Replace the last lecture with updated version
                                 periods[currentPeriod]?.removeLast()
                                 periods[currentPeriod]?.add(lastLecture.copy(reqWeak = newReqWeak))
                             }
                             "Requisito" -> {
                                 val newReqStrong = lastLecture.reqStrong.toMutableList()
                                 newReqStrong.add(firstCellText.substring(0, 7))
-
                                 periods[currentPeriod]?.removeLast()
                                 periods[currentPeriod]?.add(lastLecture.copy(reqStrong = newReqStrong))
                             }
                             "Indicação de Conjunto" -> {
                                 val newIndConj = lastLecture.indConjunto.toMutableList()
                                 newIndConj.add(firstCellText.substring(0, 7))
-
                                 periods[currentPeriod]?.removeLast()
                                 periods[currentPeriod]?.add(lastLecture.copy(indConjunto = newIndConj))
                             }
@@ -264,7 +259,8 @@ class UspParser(private val context: Context) {
             client.newCall(infoRequest).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected response $response")
 
-                val document = Jsoup.parse(response.body?.string() ?: "")
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
                 lecture = parseLectureInfo(document, lectureCode)
             }
 
@@ -278,7 +274,8 @@ class UspParser(private val context: Context) {
             client.newCall(classroomsRequest).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected response $response")
 
-                val document = Jsoup.parse(response.body?.string() ?: "")
+                val bodyString = response.body?.string() ?: ""
+                val document = Jsoup.parse(bodyString)
                 val classrooms = parseClassrooms(document)
 
                 return@withContext lecture!!.copy(classrooms = classrooms)
@@ -312,10 +309,10 @@ class UspParser(private val context: Context) {
                     department = rows[1].text().trim()
 
                     // Determine campus from unit code
-                    val unitCode = unitCodes[unit]?.toIntOrNull() ?: 0
-                    campus = if (unitCode > 0) {
+                    val unitCodeInt = unitCodes[unit]?.toIntOrNull() ?: 0
+                    campus = if (unitCodeInt > 0) {
                         campusByUnit.entries.find { (codes, _) ->
-                            codes.contains(unitCode)
+                            codes.contains(unitCodeInt)
                         }?.value ?: "Outro"
                     } else {
                         "Outro"
@@ -327,7 +324,6 @@ class UspParser(private val context: Context) {
                     }
                 }
             }
-
             // Parse objectives
             else if (headerText.startsWith("Objetivos")) {
                 val rows = table.select("tr")
@@ -335,7 +331,6 @@ class UspParser(private val context: Context) {
                     objectives = rows[1].text().trim()
                 }
             }
-
             // Parse program summary
             else if (headerText.startsWith("Programa Resumido")) {
                 val rows = table.select("tr")
@@ -343,7 +338,6 @@ class UspParser(private val context: Context) {
                     summary = rows[1].text().trim()
                 }
             }
-
             // Parse credits
             else if (headerText.contains("Créditos Aula")) {
                 val rows = table.select("tr")
@@ -395,7 +389,6 @@ class UspParser(private val context: Context) {
                 currentClassroom = parseClassroomInfo(table)
                 currentSchedules = mutableListOf()
             }
-
             // Check if this is a schedule table
             else if (headerText.contains("Horário") && currentClassroom != null) {
                 currentSchedules = parseClassroomSchedules(table)
@@ -457,11 +450,9 @@ class UspParser(private val context: Context) {
                 val teacher = cells[3].text().trim()
 
                 if (day.isNotEmpty() && startTime.isNotEmpty() && endTime.isNotEmpty()) {
-                    // New schedule
                     if (currentSchedule != null) {
                         schedules.add(currentSchedule!!)
                     }
-
                     currentSchedule = Schedule(
                         day = day,
                         startTime = startTime,
@@ -469,24 +460,16 @@ class UspParser(private val context: Context) {
                         teachers = mutableListOf(teacher)
                     )
                 } else if (day.isEmpty() && startTime.isEmpty() && teacher.isNotEmpty() && currentSchedule != null) {
-                    // Additional teacher for current schedule
                     val updatedTeachers = currentSchedule!!.teachers.toMutableList()
                     updatedTeachers.add(teacher)
-
-                    // If there's an updated end time, use it
                     val updatedEndTime = if (endTime.isNotEmpty() && endTime > currentSchedule!!.endTime)
                         endTime else currentSchedule!!.endTime
-
                     currentSchedule = currentSchedule!!.copy(
                         endTime = updatedEndTime,
                         teachers = updatedTeachers
                     )
                 } else if (day.isEmpty() && startTime.isNotEmpty() && currentSchedule != null) {
-                    // New time for same day
-                    if (currentSchedule != null) {
-                        schedules.add(currentSchedule!!)
-                    }
-
+                    schedules.add(currentSchedule!!)
                     currentSchedule = Schedule(
                         day = currentSchedule!!.day,
                         startTime = startTime,
@@ -497,7 +480,6 @@ class UspParser(private val context: Context) {
             }
         }
 
-        // Add the last schedule
         if (currentSchedule != null) {
             schedules.add(currentSchedule!!)
         }
@@ -513,15 +495,10 @@ class UspParser(private val context: Context) {
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun getSampleLecture(unitCode: String): Lecture? = withContext(Dispatchers.IO) {
         try {
-            // First try to get a course
             val courses = fetchCoursesForUnit(unitCode)
             val course = courses.firstOrNull() ?: return@withContext null
-
-            // Get a lecture from the first period
             val firstPeriod = course.periods.entries.firstOrNull() ?: return@withContext null
             val lectureInfo = firstPeriod.value.firstOrNull() ?: return@withContext null
-
-            // Fetch the lecture details
             return@withContext fetchLecture(lectureInfo.code)
         } catch (e: Exception) {
             Log.e("UspParser", "Error getting sample lecture", e)
