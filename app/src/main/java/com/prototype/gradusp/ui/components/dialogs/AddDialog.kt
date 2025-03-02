@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.prototype.gradusp.data.model.Classroom
 import com.prototype.gradusp.data.model.Event
@@ -77,7 +78,10 @@ fun AddEventDialog(
     var endTime by remember { mutableStateOf(LocalTime.of(10, 0)) }
     var color by remember { mutableStateOf(eventColors[0]) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -279,7 +283,10 @@ fun AddLectureDialog(
     // Define dialog state
     var dialogState by remember { mutableStateOf(DialogState.SEARCH) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
