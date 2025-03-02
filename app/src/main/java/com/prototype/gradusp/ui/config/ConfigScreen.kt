@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +50,12 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.parser.UspParser
+import com.prototype.gradusp.data.repository.UspDataRepository
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
@@ -63,9 +70,21 @@ fun ConfigScreen(
     val invertSwipeDirection = settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
     val coroutineScope = rememberCoroutineScope()
 
-    // For displaying parser results
-    var parserResults by remember { mutableStateOf<String?>(null) }
+    // USP Data Repository setup
     val context = LocalContext.current
+    val uspDataRepository = remember { UspDataRepository(context) }
+    var lastUpdateTime by remember { mutableStateOf(0L) }
+    var isUpdateInProgress by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<String?>(null) }
+
+    // Collect flows
+    LaunchedEffect(uspDataRepository) {
+        uspDataRepository.lastUpdateTime.collect { lastUpdateTime = it }
+    }
+
+    LaunchedEffect(uspDataRepository) {
+        uspDataRepository.isUpdateInProgress.collect { isUpdateInProgress = it }
+    }
 
     Scaffold(
         topBar = {
@@ -138,82 +157,83 @@ fun ConfigScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
+            HorizontalDivider()
+
+            Spacer(modifier = Modifier.padding(16.dp))
+
+            // USP Data section
+            Text(
+                text = "Dados da USP",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Last update time
+            if (lastUpdateTime > 0) {
+                val lastUpdateDate = Date(lastUpdateTime)
+                val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+
+                Text(
+                    text = "Última atualização: ${formatter.format(lastUpdateDate)}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Update button
             Button(
                 onClick = {
+                    updateResult = null
                     coroutineScope.launch {
-                        val parser = UspParser(context)
-                        try {
-                            // Get campus and units
-                            val campusUnits = parser.fetchCampusUnits()
-
-                            // Display a sample of campus and units
-                            val sampleCampus = campusUnits.entries.firstOrNull()
-                            val campusInfo = sampleCampus?.let {
-                                "Campus: ${it.key}\nUnidades: ${it.value.take(3).joinToString(", ")}..."
-                            } ?: "Nenhum campus encontrado"
-
-                            // Get sample course if we have units
-                            val sampleUnit = sampleCampus?.value?.firstOrNull()
-                            val unitCode = parser.getUnitCode(sampleUnit ?: "")
-
-                            val courseInfo = if (!unitCode.isNullOrEmpty()) {
-                                val courses = parser.fetchCoursesForUnit(unitCode)
-                                val course = courses.firstOrNull()
-                                course?.let {
-                                    "\n\nCurso: ${it.name}\nCódigo: ${it.code}\nPeríodo: ${it.period}"
-                                } ?: "\n\nNenhum curso encontrado"
-                            } else {
-                                "\n\nNenhuma unidade disponível"
-                            }
-
-                            // Get sample lecture if we have courses
-                            val lectureInfo = if (!unitCode.isNullOrEmpty()) {
-                                val sample = parser.getSampleLecture(unitCode)
-                                sample?.let {
-                                    "\n\nDisciplina: ${it.name}\nCódigo: ${it.code}\nCréditos: ${it.lectureCredits}"
-                                } ?: "\n\nNenhuma disciplina encontrada"
-                            } else {
-                                "\n\nNenhuma disciplina disponível"
-                            }
-
-                            parserResults = campusInfo + courseInfo + lectureInfo
-                        } catch (e: Exception) {
-                            parserResults = "Erro ao executar o parser: ${e.message}"
-                            Log.e("ConfigScreen", "Parser error", e)
+                        val success = uspDataRepository.updateUspData()
+                        updateResult = if (success) {
+                            "Dados atualizados com sucesso!"
+                        } else {
+                            "Falha ao atualizar dados. Tente novamente."
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdateInProgress
             ) {
-                Text("Testar Parser USP")
+                if (isUpdateInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Text(
+                    text = if (isUpdateInProgress) "Atualizando..." else "Atualizar Dados da USP"
+                )
             }
 
+            // Update result message
+            updateResult?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (it.startsWith("Falha"))
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Info text
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Display parser results
-            parserResults?.let {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Resultados do Parser:",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+            Text(
+                text = "Atualizar os dados da USP permite adicionar matérias mais rapidamente, sem precisar buscar online toda vez.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
         }
     }
 }

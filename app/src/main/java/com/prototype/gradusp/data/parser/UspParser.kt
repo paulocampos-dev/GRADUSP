@@ -505,14 +505,12 @@ class UspParser(private val context: Context) {
         return schedules
     }
 
-    // Helper methods for storage and retrieval would go here
-    // You might want to add methods to save/load data to/from local storage
-    // Get unit code from unit name
     fun getUnitCode(unitName: String): String? {
         return unitCodes[unitName]
     }
 
     // Get a sample lecture from a unit
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun getSampleLecture(unitCode: String): Lecture? = withContext(Dispatchers.IO) {
         try {
             // First try to get a course

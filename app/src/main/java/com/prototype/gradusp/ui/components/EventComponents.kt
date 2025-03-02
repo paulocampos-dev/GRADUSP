@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
@@ -29,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.data.model.Event
-import com.prototype.gradusp.ui.theme.GraduspCard
 import com.prototype.gradusp.ui.theme.GraduspShapes
 import com.prototype.gradusp.ui.theme.GraduspSpacing
 import com.prototype.gradusp.utils.AccessibilityUtils

@@ -1,5 +1,7 @@
 package com.prototype.gradusp.ui.calendar
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -29,15 +31,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.prototype.gradusp.data.AnimationSpeed
-import com.prototype.gradusp.ui.components.CalendarViewSelector
 import com.prototype.gradusp.ui.calendar.daily.DailyView
 import com.prototype.gradusp.ui.calendar.monthly.MonthlyView
 import com.prototype.gradusp.ui.calendar.weekly.WeeklyView
+import com.prototype.gradusp.ui.components.CalendarViewSelector
+import com.prototype.gradusp.ui.components.ExpandableFab
+import com.prototype.gradusp.ui.components.dialogs.AddEventDialog
+import com.prototype.gradusp.ui.components.dialogs.AddLectureDialog
 import com.prototype.gradusp.viewmodel.CalendarViewModel
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 
@@ -47,6 +50,7 @@ enum class CalendarView(val title: String, val contentDescription: String) {
     MONTHLY("Mensal", "Visualização mensal do calendário")
 }
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
@@ -55,6 +59,8 @@ fun CalendarScreen(
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     var selectedView by remember { mutableStateOf(CalendarView.WEEKLY) }
+    var showAddEventDialog by remember { mutableStateOf(false) }
+    var showAddLectureDialog by remember { mutableStateOf(false) }
 
     // Observe settings for animation configuration
     val animationSpeed by settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MEDIUM)
@@ -124,16 +130,6 @@ fun CalendarScreen(
                     }
                 )
             }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { /* Create dialog to add a new event */ },
-                modifier = Modifier.semantics {
-                    contentDescription = "Adicionar novo evento"
-                }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-            }
         }
     ) { padding ->
         Box(
@@ -173,6 +169,33 @@ fun CalendarScreen(
                     CalendarView.MONTHLY -> MonthlyView(calendarViewModel)
                 }
             }
+
+            ExpandableFab(
+                onAddEvent = { showAddEventDialog = true },
+                onAddLecture = { showAddLectureDialog = true }
+            )
         }
+    }
+
+    // Add Event Dialog
+    if (showAddEventDialog) {
+        AddEventDialog(
+            onDismiss = { showAddEventDialog = false },
+            onEventAdded = { event ->
+                calendarViewModel.addEvent(event)
+                showAddEventDialog = false
+            }
+        )
+    }
+
+    // Add Lecture Dialog
+    if (showAddLectureDialog) {
+        AddLectureDialog(
+            onDismiss = { showAddLectureDialog = false },
+            onLectureSelected = { lecture, selectedClassroom ->
+                calendarViewModel.addLectureEvent(lecture, selectedClassroom)
+                showAddLectureDialog = false
+            }
+        )
     }
 }

@@ -90,4 +90,17 @@ object DateTimeUtils {
         repeat(extra) { cells.add(null) }
         return cells
     }
+
+    fun convertDayStringToDayOfWeek(dayString: String): DayOfWeek {
+        return when (dayString.lowercase()) {
+            "seg" -> DayOfWeek.MONDAY
+            "ter" -> DayOfWeek.TUESDAY
+            "qua" -> DayOfWeek.WEDNESDAY
+            "qui" -> DayOfWeek.THURSDAY
+            "sex" -> DayOfWeek.FRIDAY
+            "sab" -> DayOfWeek.SATURDAY
+            "dom" -> DayOfWeek.SUNDAY
+            else -> throw IllegalArgumentException("Unknown day string: $dayString")
+        }
+    }
 }
