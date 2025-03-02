@@ -1,44 +1,56 @@
 package com.prototype.gradusp.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.prototype.gradusp.data.model.CourseGrade
 import com.prototype.gradusp.data.model.GradeEntry
+import com.prototype.gradusp.data.repository.GradesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class GradesViewModel @Inject constructor() : ViewModel() {
+class GradesViewModel @Inject constructor(
+    private val gradesRepository: GradesRepository
+) : ViewModel() {
 
-    // Store the list of courses with their grades
-    private val _courses = MutableStateFlow<List<CourseGrade>>(emptyList())
-    val courses: StateFlow<List<CourseGrade>> = _courses.asStateFlow()
+    // Get courses from repository and convert it to StateFlow
+    val courses: StateFlow<List<CourseGrade>> = gradesRepository.coursesFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // Helper method to save courses
+    private fun saveCourses(updatedCourses: List<CourseGrade>) {
+        viewModelScope.launch {
+            gradesRepository.saveCourses(updatedCourses)
+        }
+    }
 
     // Add a new course
     fun addCourse(name: String) {
         val newCourse = CourseGrade(name = name)
-        _courses.update { currentCourses ->
-            currentCourses + newCourse
-        }
+        val updatedCourses = courses.value + newCourse
+        saveCourses(updatedCourses)
     }
 
     // Remove a course
     fun removeCourse(courseId: String) {
-        _courses.update { currentCourses ->
-            currentCourses.filter { it.id != courseId }
-        }
+        val updatedCourses = courses.value.filter { it.id != courseId }
+        saveCourses(updatedCourses)
     }
 
     // Update course name
     fun updateCourseName(courseId: String, newName: String) {
-        _courses.update { currentCourses ->
-            currentCourses.map {
-                if (it.id == courseId) it.copy(name = newName) else it
-            }
+        val updatedCourses = courses.value.map {
+            if (it.id == courseId) it.copy(name = newName) else it
         }
+        saveCourses(updatedCourses)
     }
 
     // Add a grade entry to a course
@@ -49,40 +61,37 @@ class GradesViewModel @Inject constructor() : ViewModel() {
             multiplier = multiplier
         )
 
-        _courses.update { currentCourses ->
-            currentCourses.map { course ->
-                if (course.id == courseId) {
-                    course.addGradeEntry(entry)
-                } else {
-                    course
-                }
+        val updatedCourses = courses.value.map { course ->
+            if (course.id == courseId) {
+                course.addGradeEntry(entry)
+            } else {
+                course
             }
         }
+        saveCourses(updatedCourses)
     }
 
     // Update an existing grade entry
     fun updateGradeEntry(courseId: String, entry: GradeEntry) {
-        _courses.update { currentCourses ->
-            currentCourses.map { course ->
-                if (course.id == courseId) {
-                    course.updateGradeEntry(entry)
-                } else {
-                    course
-                }
+        val updatedCourses = courses.value.map { course ->
+            if (course.id == courseId) {
+                course.updateGradeEntry(entry)
+            } else {
+                course
             }
         }
+        saveCourses(updatedCourses)
     }
 
     // Remove a grade entry
     fun removeGradeEntry(courseId: String, entryId: String) {
-        _courses.update { currentCourses ->
-            currentCourses.map { course ->
-                if (course.id == courseId) {
-                    course.removeGradeEntry(entryId)
-                } else {
-                    course
-                }
+        val updatedCourses = courses.value.map { course ->
+            if (course.id == courseId) {
+                course.removeGradeEntry(entryId)
+            } else {
+                course
             }
         }
+        saveCourses(updatedCourses)
     }
 }

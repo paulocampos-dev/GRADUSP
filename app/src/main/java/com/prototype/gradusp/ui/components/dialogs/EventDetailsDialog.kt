@@ -51,6 +51,80 @@ import com.prototype.gradusp.ui.theme.GraduspSpacing
 import com.prototype.gradusp.utils.DateTimeUtils
 
 @Composable
+fun OccurrencesSection(event: Event) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = GraduspShapes.medium
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = "Horários"
+                )
+                Spacer(modifier = Modifier.width(GraduspSpacing.sm))
+                Text(
+                    text = "Horários",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(GraduspSpacing.sm))
+
+            event.occurrences.forEach { occurrence ->
+                val dayName = DateTimeUtils.getDayName(occurrence.day)
+                val timeRange = DateTimeUtils.formatTimeRange(occurrence.startTime, occurrence.endTime)
+
+                Text(
+                    text = "$dayName: $timeRange",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 28.dp, bottom = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    eventTitle: String,
+    onDismiss: () -> Unit,
+    onConfirmDelete: () -> Unit
+) {
+    GraduspDialog(
+        title = "Excluir evento",
+        onDismiss = onDismiss,
+        actions = {
+            DialogActions(
+                onCancel = onDismiss,
+                onConfirm = onConfirmDelete,
+                cancelText = "Cancelar",
+                confirmText = "Excluir"
+            )
+        }
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Text(
+                text = "Você tem certeza que deseja excluir o evento \"$eventTitle\"?",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Esta ação não pode ser desfeita.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
 fun EventDetailsDialog(
     event: Event,
     onDismiss: () -> Unit,
@@ -173,12 +247,59 @@ fun EventDetailsDialog(
             Spacer(modifier = Modifier.height(GraduspSpacing.md))
 
             // Color picker section
-            ColorPickerSection(
-                selectedColor = selectedColor,
-                onColorSelected = { selectedColor = it },
-                onShowColorPicker = { showColorPicker = true }
-            )
+            Column {
+                Text(
+                    text = "Cor do evento",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
 
+                Spacer(modifier = Modifier.height(GraduspSpacing.sm))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    eventColors.forEach { color ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (selectedColor == color) 3.dp else 1.dp,
+                                    color = if (selectedColor == color)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        Color.Black.copy(alpha = 0.2f),
+                                    shape = CircleShape
+                                )
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .clickable { selectedColor = color }
+                        )
+                    }
+
+                    // Custom color button
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
+                            .clickable { showColorPicker = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "+",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Show color picker dialog when needed
             if (showColorPicker) {
                 ColorPickerDialog(
                     currentColor = selectedColor,
@@ -206,139 +327,3 @@ fun EventDetailsDialog(
         )
     }
 }
-
-@Composable
-fun OccurrencesSection(event: Event) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = GraduspShapes.medium
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = "Horários"
-                )
-                Spacer(modifier = Modifier.width(GraduspSpacing.sm))
-                Text(
-                    text = "Horários",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(GraduspSpacing.sm))
-
-            event.occurrences.forEach { occurrence ->
-                val dayName = DateTimeUtils.getDayName(occurrence.day)
-                val timeRange = DateTimeUtils.formatTimeRange(occurrence.startTime, occurrence.endTime)
-
-                Text(
-                    text = "$dayName: $timeRange",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(start = 28.dp, bottom = 4.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ColorPickerSection(
-    selectedColor: Color,
-    onColorSelected: (Color) -> Unit,
-    onShowColorPicker: () -> Unit
-) {
-    Column {
-        Text(
-            text = "Cor do evento",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium
-        )
-
-        Spacer(modifier = Modifier.height(GraduspSpacing.sm))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            eventColors.forEach { color ->
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                        .border(
-                            width = if (selectedColor == color) 3.dp else 1.dp,
-                            color = if (selectedColor == color)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                Color.Black.copy(alpha = 0.2f),
-                            shape = CircleShape
-                        )
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .clickable { onColorSelected(color) }
-                )
-            }
-
-            // Custom color button
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
-                    .clickable { onShowColorPicker() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "+",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun DeleteConfirmationDialog(
-    eventTitle: String,
-    onDismiss: () -> Unit,
-    onConfirmDelete: () -> Unit
-) {
-    GraduspDialog(
-        title = "Excluir evento",
-        onDismiss = onDismiss,
-        actions = {
-            DialogActions(
-                onCancel = onDismiss,
-                onConfirm = onConfirmDelete,
-                cancelText = "Cancelar",
-                confirmText = "Excluir"
-            )
-        }
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            Text(
-                text = "Você tem certeza que deseja excluir o evento \"$eventTitle\"?",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Esta ação não pode ser desfeita.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-    }
-}
-
-private val Color.Companion.clickable: Any
-    get() = Any()
