@@ -76,12 +76,22 @@ data class Classroom(
     val endDate: String,
     val observations: String = "",
     val teachers: List<String> = listOf(),
-    val schedules: List<Schedule> = listOf()
+    val schedules: List<Schedule> = listOf(),
+    val vacancies: Map<String, VacancyInfo> = mapOf(),
+    val type: String? = null,
+    val theoreticalCode: String? = null
 )
-
 data class Schedule(
     val day: String, // "seg", "ter", "qua", "qui", "sex", "sab", "dom"
     val startTime: String, // "08:00"
     val endTime: String,   // "09:40"
     val teachers: List<String> = listOf()
+)
+
+data class VacancyInfo(
+    val total: Int,
+    val subscribed: Int,
+    val pending: Int,
+    val enrolled: Int,
+    val groups: Map<String, VacancyInfo> = mapOf()
 )

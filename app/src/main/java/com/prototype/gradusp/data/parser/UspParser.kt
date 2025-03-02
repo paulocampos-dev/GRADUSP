@@ -21,6 +21,7 @@ import com.prototype.gradusp.data.model.Course
 import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.model.LectureInfo
 import com.prototype.gradusp.data.model.Schedule
+import com.prototype.gradusp.data.model.VacancyInfo
 
 class UspParser(private val context: Context) {
     private val client = OkHttpClient.Builder()
@@ -47,6 +48,7 @@ class UspParser(private val context: Context) {
         private val COURSE_NAME_REGEX = Regex("Curso:\\s*(.+)\\s*")
         private val UNIT_CODE_REGEX = Regex("codcg=([1-9]+)")
         private val PERIOD_REGEX = Regex("([0-9]+)º Período Ideal")
+        private val TAG = "UspParser"
     }
 
     suspend fun fetchCampusUnits(): Map<String, List<String>> = withContext(Dispatchers.IO) {
@@ -85,12 +87,11 @@ class UspParser(private val context: Context) {
 
             return@withContext campusMap
         } catch (e: Exception) {
-            Log.e("UspParser", "Error fetching campus units", e)
+            Log.e(TAG, "Error fetching campus units", e)
             return@withContext emptyMap<String, List<String>>()
         }
     }
 
-    // COURSES PARSERS
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun fetchCoursesForUnit(unitCode: String): List<Course> = withContext(Dispatchers.IO) {
         try {
@@ -119,7 +120,7 @@ class UspParser(private val context: Context) {
                 return@withContext coursesDeferred.awaitAll().filterNotNull()
             }
         } catch (e: Exception) {
-            Log.e("UspParser", "Error fetching courses for unit $unitCode", e)
+            Log.e(TAG, "Error fetching courses for unit $unitCode", e)
             return@withContext emptyList<Course>()
         }
     }
@@ -164,7 +165,7 @@ class UspParser(private val context: Context) {
                 return@withContext Course(code, name, unit, period, periods)
             }
         } catch (e: Exception) {
-            Log.e("UspParser", "Error fetching course details: $courseLink", e)
+            Log.e(TAG, "Error fetching course details: $courseLink", e)
             return@withContext null
         }
     }
@@ -246,7 +247,6 @@ class UspParser(private val context: Context) {
         return periods
     }
 
-    // LECTURE PARSERS
     suspend fun fetchLecture(lectureCode: String): Lecture? = withContext(Dispatchers.IO) {
         try {
             // First fetch basic info
@@ -278,10 +278,13 @@ class UspParser(private val context: Context) {
                 val document = Jsoup.parse(bodyString)
                 val classrooms = parseClassrooms(document)
 
-                return@withContext lecture!!.copy(classrooms = classrooms)
+                // Process linked classrooms (theoretical and practical)
+                val processedClassrooms = processLinkedClassrooms(classrooms)
+
+                return@withContext lecture!!.copy(classrooms = processedClassrooms)
             }
         } catch (e: Exception) {
-            Log.e("UspParser", "Error fetching lecture $lectureCode", e)
+            Log.e(TAG, "Error fetching lecture $lectureCode", e)
             return@withContext null
         }
     }
@@ -369,45 +372,44 @@ class UspParser(private val context: Context) {
     }
 
     private fun parseClassrooms(document: Document): List<Classroom> {
-        val tables = document.select("table")
         val classrooms = mutableListOf<Classroom>()
+        var currentClassroom: ClassroomBuilder? = null
 
-        var currentClassroom: Classroom? = null
-        var currentSchedules: MutableList<Schedule>? = null
-
-        tables.forEach { table ->
+        document.select("table").forEach { table ->
             val headerText = table.text()
 
             // Check if this is a classroom info table
             if (headerText.contains("Código da Turma")) {
                 // Save previous classroom if exists
-                if (currentClassroom != null && currentSchedules != null) {
-                    classrooms.add(currentClassroom!!.copy(schedules = currentSchedules!!))
+                currentClassroom?.let { builder ->
+                    classrooms.add(builder.build())
                 }
 
                 // Start parsing new classroom
                 currentClassroom = parseClassroomInfo(table)
-                currentSchedules = mutableListOf()
             }
             // Check if this is a schedule table
             else if (headerText.contains("Horário") && currentClassroom != null) {
-                currentSchedules = parseClassroomSchedules(table)
+                val schedules = parseClassroomSchedules(table)
+                currentClassroom!!.schedules.addAll(schedules)
+            }
+            // Check if this is a vacancy table
+            else if (headerText.contains("Vagas") && currentClassroom != null) {
+                val vacancies = parseVacancies(table)
+                currentClassroom!!.vacancies.putAll(vacancies)
             }
         }
 
         // Add the last classroom
-        if (currentClassroom != null && currentSchedules != null) {
-            classrooms.add(currentClassroom!!.copy(schedules = currentSchedules!!))
+        currentClassroom?.let {
+            classrooms.add(it.build())
         }
 
         return classrooms
     }
 
-    private fun parseClassroomInfo(table: Element): Classroom {
-        var code = ""
-        var startDate = ""
-        var endDate = ""
-        var observations = ""
+    private fun parseClassroomInfo(table: Element): ClassroomBuilder {
+        val builder = ClassroomBuilder()
 
         table.select("tr").forEach { row ->
             val cells = row.select("td")
@@ -416,93 +418,285 @@ class UspParser(private val context: Context) {
                 val value = cells[1].text().trim()
 
                 when {
-                    label.contains("Código da Turma") && !label.contains("Teórica") -> {
-                        val codeMatch = Regex("^(\\w+)").find(value)
-                        if (codeMatch != null) {
-                            code = codeMatch.groupValues[1]
+                    label.contains("Código da Turma") -> {
+                        if (label.contains("Teórica")) {
+                            builder.theoreticalCode = value.trim()
+                        } else {
+                            val codeMatch = Regex("^(\\w+)").find(value)
+                            if (codeMatch != null) {
+                                builder.code = codeMatch.groupValues[1]
+                            }
                         }
                     }
-                    label.contains("Início") -> startDate = value
-                    label.contains("Fim") -> endDate = value
-                    label.contains("Observações") -> observations = value
+                    label.contains("Início") -> builder.startDate = value
+                    label.contains("Fim") -> builder.endDate = value
+                    label.contains("Observações") -> builder.observations = value
+                    label.contains("Tipo da Turma") -> builder.type = value
                 }
             }
         }
 
-        return Classroom(
-            code = code,
-            startDate = startDate,
-            endDate = endDate,
-            observations = observations
-        )
+        return builder
     }
 
-    private fun parseClassroomSchedules(table: Element): MutableList<Schedule> {
+    private fun parseClassroomSchedules(table: Element): List<Schedule> {
         val schedules = mutableListOf<Schedule>()
-        var currentSchedule: Schedule? = null
+        var currentDay: String? = null
+        var currentStartTime: String? = null
+        var currentEndTime: String? = null
+        var currentTeachers = mutableListOf<String>()
 
         table.select("tr").forEach { row ->
             val cells = row.select("td")
-            if (cells.size >= 4) {
-                val day = cells[0].text().trim()
-                val startTime = cells[1].text().trim()
-                val endTime = cells[2].text().trim()
-                val teacher = cells[3].text().trim()
 
-                if (day.isNotEmpty() && startTime.isNotEmpty() && endTime.isNotEmpty()) {
-                    if (currentSchedule != null) {
-                        schedules.add(currentSchedule!!)
-                    }
-                    currentSchedule = Schedule(
-                        day = day,
-                        startTime = startTime,
-                        endTime = endTime,
-                        teachers = mutableListOf(teacher)
-                    )
-                } else if (day.isEmpty() && startTime.isEmpty() && teacher.isNotEmpty() && currentSchedule != null) {
-                    val updatedTeachers = currentSchedule!!.teachers.toMutableList()
-                    updatedTeachers.add(teacher)
-                    val updatedEndTime = if (endTime.isNotEmpty() && endTime > currentSchedule!!.endTime)
-                        endTime else currentSchedule!!.endTime
-                    currentSchedule = currentSchedule!!.copy(
-                        endTime = updatedEndTime,
-                        teachers = updatedTeachers
-                    )
-                } else if (day.isEmpty() && startTime.isNotEmpty() && currentSchedule != null) {
-                    schedules.add(currentSchedule!!)
-                    currentSchedule = Schedule(
-                        day = currentSchedule!!.day,
-                        startTime = startTime,
-                        endTime = endTime,
-                        teachers = mutableListOf(teacher)
-                    )
+            if (cells.size < 2) return@forEach
+
+            val day = cells[0].text().trim()
+            val startTime = cells[1].text().trim()
+            val endTime = if (cells.size > 2) cells[2].text().trim() else ""
+            val teacher = if (cells.size > 3) cells[3].text().trim() else ""
+
+            if (day.isNotEmpty()) {
+                // A new schedule is starting
+                // Save the previous one if it exists
+                if (currentDay != null && currentStartTime != null && currentEndTime != null) {
+                    schedules.add(Schedule(
+                        day = currentDay!!,
+                        startTime = currentStartTime!!,
+                        endTime = currentEndTime!!,
+                        teachers = currentTeachers.toList()
+                    ))
+                }
+
+                // Start a new schedule
+                currentDay = day
+                currentStartTime = startTime
+                currentEndTime = endTime
+                currentTeachers = mutableListOf()
+                if (teacher.isNotEmpty()) {
+                    currentTeachers.add(teacher)
+                }
+            } else if (day.isEmpty() && startTime.isEmpty() && teacher.isNotEmpty()) {
+                // This is a continuation of teachers for the current schedule
+                currentTeachers.add(teacher)
+                // If there's a new end time, update it
+                if (endTime.isNotEmpty() && endTime > (currentEndTime ?: "")) {
+                    currentEndTime = endTime
+                }
+            } else if (day.isEmpty() && startTime.isNotEmpty()) {
+                // This is a new time slot on the same day
+                if (currentDay != null && currentStartTime != null && currentEndTime != null) {
+                    schedules.add(Schedule(
+                        day = currentDay!!,
+                        startTime = currentStartTime!!,
+                        endTime = currentEndTime!!,
+                        teachers = currentTeachers.toList()
+                    ))
+                }
+
+                // Keep the same day, but update times
+                currentStartTime = startTime
+                currentEndTime = endTime
+                currentTeachers = mutableListOf()
+                if (teacher.isNotEmpty()) {
+                    currentTeachers.add(teacher)
                 }
             }
         }
 
-        if (currentSchedule != null) {
-            schedules.add(currentSchedule!!)
+        // Don't forget to add the last schedule
+        if (currentDay != null && currentStartTime != null && currentEndTime != null) {
+            schedules.add(Schedule(
+                day = currentDay!!,
+                startTime = currentStartTime!!,
+                endTime = currentEndTime!!,
+                teachers = currentTeachers.toList()
+            ))
         }
 
         return schedules
+    }
+
+    private fun parseVacancies(table: Element): Map<String, VacancyInfo> {
+        val vacancies = mutableMapOf<String, VacancyInfo>()
+        var currentType: String? = null
+        var currentVacancy: VacancyBuilder? = null
+
+        table.select("tr").forEach { row ->
+            val cells = row.select("td")
+            if (cells.size < 2) return@forEach
+
+            val firstCell = cells[0].text().trim()
+
+            if (firstCell == "Vagas" || firstCell.isEmpty()) {
+                // Header row - skip
+                return@forEach
+            }
+
+            if (cells.size == 5 && !firstCell.isEmpty()) {
+                // This is a new vacancy type (Obrigatória, Optativa, etc.)
+                // Save previous vacancy if it exists
+                if (currentType != null && currentVacancy != null) {
+                    vacancies[currentType!!] = currentVacancy!!.build()
+                }
+
+                // Start a new vacancy type
+                currentType = firstCell
+                currentVacancy = VacancyBuilder()
+
+                // Parse the vacancy numbers
+                if (cells.size >= 5) {
+                    currentVacancy!!.total = cells[1].text().trim().toIntOrNull() ?: 0
+                    currentVacancy!!.subscribed = cells[2].text().trim().toIntOrNull() ?: 0
+                    currentVacancy!!.pending = cells[3].text().trim().toIntOrNull() ?: 0
+                    currentVacancy!!.enrolled = cells[4].text().trim().toIntOrNull() ?: 0
+                }
+            } else if (cells.size == 6 && currentType != null && currentVacancy != null) {
+                // This is a vacancy group (IME - Matemática Bacharelado, etc.)
+                val groupName = cells[1].text().trim()
+                val groupTotal = cells[2].text().trim().toIntOrNull() ?: 0
+                val groupSubscribed = cells[3].text().trim().toIntOrNull() ?: 0
+                val groupPending = cells[4].text().trim().toIntOrNull() ?: 0
+                val groupEnrolled = cells[5].text().trim().toIntOrNull() ?: 0
+
+                // Add to current vacancy's groups
+                currentVacancy!!.groups[groupName] = VacancyInfo(
+                    total = groupTotal,
+                    subscribed = groupSubscribed,
+                    pending = groupPending,
+                    enrolled = groupEnrolled
+                )
+            }
+        }
+
+        // Add the last vacancy
+        if (currentType != null && currentVacancy != null) {
+            vacancies[currentType!!] = currentVacancy!!.build()
+        }
+
+        return vacancies
+    }
+
+    private fun processLinkedClassrooms(classrooms: List<Classroom>): List<Classroom> {
+        val result = mutableListOf<Classroom>()
+        val theoreticalClassrooms = classrooms.filter { it.type?.contains("Teórica") == true }
+        val practicalClassrooms = classrooms.filter { it.type?.contains("Prática") == true }
+        val standardClassrooms = classrooms.filter {
+            it.type?.contains("Teórica") != true && it.type?.contains("Prática") != true
+        }
+
+        // Add all standard classrooms
+        result.addAll(standardClassrooms)
+
+        // Process linked classrooms
+        practicalClassrooms.forEach { practical ->
+            val theoretical = theoreticalClassrooms.find { it.code == practical.theoreticalCode }
+
+            if (theoretical != null) {
+                // Create a combined classroom
+                val combined = Classroom(
+                    code = "${theoretical.code}+${practical.code.takeLast(2)}",
+                    startDate = theoretical.startDate,
+                    endDate = theoretical.endDate,
+                    observations = listOfNotNull(theoretical.observations, practical.observations)
+                        .filter { it.isNotEmpty() }
+                        .joinToString("\n"),
+                    teachers = (theoretical.teachers + practical.teachers).distinct(),
+                    schedules = theoretical.schedules + practical.schedules,
+                    vacancies = practical.vacancies, // Use practical's vacancies as they're usually more restrictive
+                    type = "Teórica+Prática",
+                    theoreticalCode = null
+                )
+                result.add(combined)
+            } else {
+                // Add the practical classroom as is
+                result.add(practical)
+            }
+        }
+
+        // Add any theoretical classrooms that don't have linked practicals
+        val linkedTheoretical = practicalClassrooms.mapNotNull { it.theoreticalCode }.toSet()
+        theoreticalClassrooms
+            .filter { !linkedTheoretical.contains(it.code) }
+            .forEach { result.add(it) }
+
+        return result
     }
 
     fun getUnitCode(unitName: String): String? {
         return unitCodes[unitName]
     }
 
-    // Get a sample lecture from a unit
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    suspend fun getSampleLecture(unitCode: String): Lecture? = withContext(Dispatchers.IO) {
-        try {
-            val courses = fetchCoursesForUnit(unitCode)
-            val course = courses.firstOrNull() ?: return@withContext null
-            val firstPeriod = course.periods.entries.firstOrNull() ?: return@withContext null
-            val lectureInfo = firstPeriod.value.firstOrNull() ?: return@withContext null
-            return@withContext fetchLecture(lectureInfo.code)
-        } catch (e: Exception) {
-            Log.e("UspParser", "Error getting sample lecture", e)
-            return@withContext null
+    // Helper class to build Classroom objects
+    private class ClassroomBuilder {
+        var code: String = ""
+        var startDate: String = ""
+        var endDate: String = ""
+        var observations: String = ""
+        var type: String? = null
+        var theoreticalCode: String? = null
+        val teachers = mutableListOf<String>()
+        val schedules = mutableListOf<Schedule>()
+        val vacancies = mutableMapOf<String, VacancyInfo>()
+
+        fun build(): Classroom {
+            return Classroom(
+                code = code,
+                startDate = startDate,
+                endDate = endDate,
+                observations = observations,
+                teachers = teachers.toList(),
+                schedules = schedules.toList(),
+                vacancies = vacancies.toMap(),
+                type = type,
+                theoreticalCode = theoreticalCode
+            )
         }
     }
+
+    // Helper class to build VacancyInfo objects
+    private class VacancyBuilder {
+        var total: Int = 0
+        var subscribed: Int = 0
+        var pending: Int = 0
+        var enrolled: Int = 0
+        val groups = mutableMapOf<String, VacancyInfo>()
+
+        fun build(): VacancyInfo {
+            return VacancyInfo(
+                total = total,
+                subscribed = subscribed,
+                pending = pending,
+                enrolled = enrolled,
+                groups = groups.toMap()
+            )
+        }
+    }
+
+    // Helper function to compare time strings
+    private fun timeInMinutes(timeString: String): Int {
+        val parts = timeString.split(":")
+        if (parts.size < 2) return 0
+
+        val hours = parts[0].toIntOrNull() ?: 0
+        val minutes = parts[1].toIntOrNull() ?: 0
+        return hours * 60 + minutes
+    }
+
+    // Helper function to check if schedules conflict
+    fun schedulesConflict(schedule1: Schedule, schedule2: Schedule): Boolean {
+        if (schedule1.day != schedule2.day) return false
+
+        val time1Begin = timeInMinutes(schedule1.startTime)
+        val time1End = timeInMinutes(schedule1.endTime)
+        val time2Begin = timeInMinutes(schedule2.startTime)
+        val time2End = timeInMinutes(schedule2.endTime)
+
+        return (time1Begin == time2Begin && time1End == time2End) ||
+                (time1Begin < time2Begin && time2Begin < time1End) ||
+                (time1Begin < time2End && time2End < time1End) ||
+                (time2Begin < time1Begin && time1Begin < time2End) ||
+                (time2Begin < time1End && time1End < time2End)
+    }
 }
+
