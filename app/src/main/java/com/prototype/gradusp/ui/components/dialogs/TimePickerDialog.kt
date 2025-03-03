@@ -56,7 +56,7 @@ fun TimePickerDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Select Time",
+                    text = "Escola o horário",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -97,7 +97,7 @@ fun TimePickerDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text("Cancelar")
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -129,7 +129,7 @@ fun NumberSelector(
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowUp,
-                contentDescription = "Increase"
+                contentDescription = "Aumentar"
             )
         }
 
@@ -144,7 +144,7 @@ fun NumberSelector(
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Decrease"
+                contentDescription = "Diminuir"
             )
         }
     }

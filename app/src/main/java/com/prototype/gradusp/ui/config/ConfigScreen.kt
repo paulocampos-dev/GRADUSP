@@ -31,7 +31,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,14 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.UserPreferencesRepository
-import com.prototype.gradusp.data.parser.UspParser
 import com.prototype.gradusp.data.repository.UspDataRepository
 import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 import com.prototype.gradusp.ui.components.config.SchoolSelectionCard
@@ -70,7 +66,7 @@ fun ConfigScreen(
 ) {
     // Read the current values from SettingsManager - it will update when values change
     val settingsViewModel : SettingsViewModel = hiltViewModel()
-    val animationSpeedFlow = settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MEDIUM)
+    val animationSpeedFlow = settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MÉDIA)
     val invertSwipeDirection = settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
     val selectedSchools = settingsViewModel.selectedSchools.collectAsState(initial = emptySet())
     val coroutineScope = rememberCoroutineScope()

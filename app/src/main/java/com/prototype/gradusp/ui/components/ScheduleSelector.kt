@@ -46,7 +46,7 @@ fun ScheduleSelector(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Schedule",
+            text = "Horários",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -89,7 +89,7 @@ fun ScheduleSelector(
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(4.dp))
-            Text("Add Time Slot")
+            Text("Adicionar um horário")
         }
     }
 }
@@ -134,7 +134,7 @@ fun CompactOccurrenceItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Day:",
+                    text = "Dia:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(end = 8.dp)
@@ -156,7 +156,7 @@ fun CompactOccurrenceItem(
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove time slot",
+                        contentDescription = "Remover horário",
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -186,7 +186,7 @@ fun CompactOccurrenceItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Time:",
+                    text = "Horário:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(end = 8.dp)

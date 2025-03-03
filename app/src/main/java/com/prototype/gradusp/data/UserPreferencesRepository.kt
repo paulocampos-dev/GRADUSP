@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -35,7 +34,7 @@ class UserPreferencesRepository @Inject constructor (
             }
         }
         .map { preferences ->
-            val speedOrdinal = preferences[PreferencesKeys.ANIMATION_SPEED] ?: AnimationSpeed.MEDIUM.ordinal
+            val speedOrdinal = preferences[PreferencesKeys.ANIMATION_SPEED] ?: AnimationSpeed.MÉDIA.ordinal
             AnimationSpeed.values()[speedOrdinal]
         }
 
@@ -83,7 +82,7 @@ class UserPreferencesRepository @Inject constructor (
 }
 
 enum class AnimationSpeed(val swipe: Int, val tab: Int, val transition: Int) {
-    FAST(50, 40, 60),
-    MEDIUM(100, 80, 120),
-    SLOW(200, 160, 240)
+    RÁPIDO(50, 40, 60),
+    MÉDIA(100, 80, 120),
+    DEVAGAR(200, 160, 240)
 }

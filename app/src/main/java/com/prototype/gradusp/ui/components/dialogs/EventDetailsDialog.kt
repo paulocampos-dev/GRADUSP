@@ -172,7 +172,7 @@ fun EventDetailsDialog(
             ) {
                 // Dialog title
                 Text(
-                    text = "Edit Event",
+                    text = "Editar",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -197,7 +197,7 @@ fun EventDetailsDialog(
                 LabeledTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = "Event name",
+                    label = "Nome",
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -215,7 +215,7 @@ fun EventDetailsDialog(
                 LabeledTextField(
                     value = teacher,
                     onValueChange = { teacher = it },
-                    label = "Teacher",
+                    label = "Professor(a)",
                     icon = Icons.Default.Person
                 )
 
@@ -225,7 +225,7 @@ fun EventDetailsDialog(
                 LabeledTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = "Location/Room",
+                    label = "Localização/Sala",
                     icon = Icons.Default.LocationOn
                 )
 
@@ -235,7 +235,7 @@ fun EventDetailsDialog(
                 LabeledTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = "Notes",
+                    label = "Anotações",
                     icon = Icons.Default.Edit,
                     singleLine = false,
                     minLines = 3
@@ -246,7 +246,7 @@ fun EventDetailsDialog(
                 // Color picker section
                 Column {
                     Text(
-                        text = "Event color",
+                        text = "Cor",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium
                     )
