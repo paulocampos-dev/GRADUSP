@@ -49,6 +49,7 @@ import androidx.navigation.NavController
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.UserPreferencesRepository
 import com.prototype.gradusp.data.repository.UspDataRepository
+import com.prototype.gradusp.ui.components.VersionDisplay
 import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 import com.prototype.gradusp.ui.components.config.SchoolSelectionCard
 import com.prototype.gradusp.viewmodel.SettingsViewModel
@@ -353,6 +354,13 @@ fun ConfigScreen(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            VersionDisplay(
+                versionName = " VERSÃO PRU: 1.0.0", // Update with your version
+                versionCode = 1,       // Update with your code
+                isBeta = true
+            )
         }
     }
 }

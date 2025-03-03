@@ -19,7 +19,8 @@ import javax.inject.Singleton
 @Singleton
 class EventRepository @Inject constructor() {
     // In a real app, this would be backed by a Room database
-    private val _events = MutableStateFlow(sampleEvents)
+//    private val _events = MutableStateFlow(sampleEvents)
+    private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
 
     /**
