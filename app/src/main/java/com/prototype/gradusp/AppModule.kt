@@ -25,8 +25,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideEventRepository(): EventRepository {
-        return EventRepository()
+    fun provideEventRepository(
+        @ApplicationContext context: Context
+    ): EventRepository {
+        return EventRepository(context)
     }
 
     @Provides

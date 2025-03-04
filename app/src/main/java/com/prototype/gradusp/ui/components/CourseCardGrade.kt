@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +45,7 @@ import java.text.DecimalFormat
 fun CourseCard(
     course: CourseGrade,
     onUpdateName: (String) -> Unit,
+    onUpdateNotes: (String) -> Unit,
     onAddGradeEntry: (String, Float, Float) -> Unit,
     onUpdateGradeEntry: (GradeEntry) -> Unit,
     onRemoveGradeEntry: (String) -> Unit,
@@ -50,6 +53,8 @@ fun CourseCard(
 ) {
     var expanded by remember { mutableStateOf(true) }
     var courseName by remember(course.name) { mutableStateOf(course.name) }
+    var courseNotes by remember(course.notes) { mutableStateOf(course.notes) }
+    var showNotesSection by remember { mutableStateOf(false) }
 
     // For adding new grade entries
     var newEntryName by remember { mutableStateOf("") }
@@ -127,6 +132,61 @@ fun CourseCard(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Notes button
+                TextButton(
+                    onClick = { showNotesSection = !showNotesSection },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Anotações",
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    Text(
+                        text = if (showNotesSection) "Ocultar Anotações" else "Mostrar Anotações"
+                    )
+                }
+            }
+
+            // Notes section
+            AnimatedVisibility(
+                visible = showNotesSection,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Anotações sobre Cálculo da Nota",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = courseNotes,
+                        onValueChange = {
+                            courseNotes = it
+                            onUpdateNotes(it)
+                        },
+                        label = { Text("Descreva como a nota da disciplina é calculada") },
+                        placeholder = { Text("Ex: Média = (Prova1 + Prova2 + Prova3)/3, precisa de 5.0 para passar") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        minLines = 3,
+                        maxLines = 5
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider()
+                }
             }
 
             // Expanded content - grade entries

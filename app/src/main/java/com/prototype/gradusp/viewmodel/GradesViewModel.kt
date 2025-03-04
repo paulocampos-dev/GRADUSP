@@ -53,6 +53,18 @@ class GradesViewModel @Inject constructor(
         saveCourses(updatedCourses)
     }
 
+    // Update course notes
+    fun updateCourseNotes(courseId: String, notes: String) {
+        val updatedCourses = courses.value.map { course ->
+            if (course.id == courseId) {
+                course.updateNotes(notes)
+            } else {
+                course
+            }
+        }
+        saveCourses(updatedCourses)
+    }
+
     // Add a grade entry to a course
     fun addGradeEntry(courseId: String, name: String, grade: Float, multiplier: Float) {
         val entry = GradeEntry(

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun VersionDisplay(
-    versionName: String = "1.0.0",
+    versionName: String = "1.0.1",
     versionCode: Int = 1,
     isBeta: Boolean = true,
     modifier: Modifier = Modifier

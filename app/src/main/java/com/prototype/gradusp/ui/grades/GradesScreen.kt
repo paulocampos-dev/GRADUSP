@@ -146,6 +146,9 @@ fun GradesScreen(
                             onUpdateName = { newName ->
                                 viewModel.updateCourseName(course.id, newName)
                             },
+                            onUpdateNotes = { notes ->
+                                viewModel.updateCourseNotes(course.id, notes)
+                            },
                             onAddGradeEntry = { name, grade, multiplier ->
                                 viewModel.addGradeEntry(course.id, name, grade, multiplier)
                             },

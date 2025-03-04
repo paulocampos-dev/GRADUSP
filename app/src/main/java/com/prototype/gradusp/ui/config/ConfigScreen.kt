@@ -357,7 +357,7 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             VersionDisplay(
-                versionName = " VERSÃO PRU: 1.0.0", // Update with your version
+                versionName = "1.1.0", // Update with your version
                 versionCode = 1,       // Update with your code
                 isBeta = true
             )

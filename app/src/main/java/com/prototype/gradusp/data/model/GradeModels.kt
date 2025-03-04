@@ -16,7 +16,8 @@ data class GradeEntry(
 data class CourseGrade(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
-    val gradeEntries: List<GradeEntry> = emptyList()
+    val gradeEntries: List<GradeEntry> = emptyList(),
+    val notes: String = "" // Added notes field
 ) {
     fun calculateFinalGrade(): Float {
         if (gradeEntries.isEmpty()) return 0f
@@ -47,5 +48,9 @@ data class CourseGrade(
         return this.copy(
             gradeEntries = gradeEntries.filter { it.id != entryId }
         )
+    }
+
+    fun updateNotes(newNotes: String): CourseGrade {
+        return this.copy(notes = newNotes)
     }
 }
