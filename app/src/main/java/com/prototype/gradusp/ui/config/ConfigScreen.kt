@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -356,11 +357,54 @@ fun ConfigScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+
+            HorizontalDivider()
+
+            Spacer(modifier = Modifier.padding(16.dp))
+
+            Text(
+                text = "Apoio",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Support section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Apoie o Desenvolvedor",
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    Text(
+                        text = "GRADUSP é um aplicativo gratuito desenvolvido por um estudante da USP. \n \nVocê pode ajudar a manter o projeto assistindo a um anúncio.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { /* Show rewarded ad */ },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Assistir um anúncio para apoiar")
+                    }
+                }
+            }
+
             VersionDisplay(
                 versionName = "1.1.0", // Update with your version
                 versionCode = 1,       // Update with your code
                 isBeta = true
             )
+
         }
     }
 }
