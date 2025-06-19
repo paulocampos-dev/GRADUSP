@@ -45,11 +45,9 @@ enum class CalendarView(val title: String, val contentDescription: String) {
     MONTHLY("Mensal", "Visualização mensal do calendário")
 }
 
-@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
-    navController: NavController,
     calendarViewModel: CalendarViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -112,23 +110,17 @@ fun CalendarScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            Column {
-                GraduspTitleBar(screenTitle = "Calendário")
-                CalendarViewSelector(
-                    selectedView = selectedView,
-                    onViewSelected = { newView ->
-                        selectedView = newView
-                    }
-                )
+    Column(modifier = Modifier.fillMaxSize()){
+        CalendarViewSelector(
+            selectedView = selectedView,
+            onViewSelected = { newView ->
+                selectedView = newView
             }
-        }
-    ) { padding ->
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .then(dragModifier)
         ) {
             // Content area with animated transitions between views
@@ -139,7 +131,8 @@ fun CalendarScreen(
                     val isForwardTransition = targetState.ordinal > initialState.ordinal
 
                     // Apply inversion if the setting is enabled
-                    val effectiveForward = if (invertSwipeDirection) !isForwardTransition else isForwardTransition
+                    val effectiveForward =
+                        if (invertSwipeDirection) !isForwardTransition else isForwardTransition
 
                     // Create the animation with the appropriate direction
                     val slideInDirection = if (effectiveForward) 1 else -1
@@ -147,11 +140,17 @@ fun CalendarScreen(
 
                     // Animation setup with custom durations
                     slideInHorizontally(
-                        animationSpec = tween(animationSpeed.transition, easing = FastOutSlowInEasing)
+                        animationSpec = tween(
+                            animationSpeed.transition,
+                            easing = FastOutSlowInEasing
+                        )
                     ) { fullWidth -> slideInDirection * fullWidth } +
                             fadeIn(tween(animationSpeed.transition)) togetherWith
                             slideOutHorizontally(
-                                animationSpec = tween(animationSpeed.transition, easing = FastOutSlowInEasing)
+                                animationSpec = tween(
+                                    animationSpeed.transition,
+                                    easing = FastOutSlowInEasing
+                                )
                             ) { fullWidth -> slideOutDirection * fullWidth } +
                             fadeOut(tween(animationSpeed.transition))
                 }
