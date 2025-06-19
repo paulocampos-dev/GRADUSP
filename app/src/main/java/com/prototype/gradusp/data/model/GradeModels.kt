@@ -1,35 +1,36 @@
 package com.prototype.gradusp.data.model
 
-// Represents a grade entry (single assessment) with a multiplier
+import java.math.BigDecimal
+import java.math.RoundingMode
+
+// Represents a single assessment (e.g., a test or assignment)
 data class GradeEntry(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
-    val grade: Float = 0f,
-    val multiplier: Float = 1f
-) {
-    fun calculateContribution(): Float {
-        return grade * multiplier
-    }
-}
+    val grade: Double = 0.0,
+    val weight: Double = 1.0
+)
 
-// Represents a complete course with multiple grade entries
+// Represents a complete course with its grading scheme and entries
 data class CourseGrade(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
     val gradeEntries: List<GradeEntry> = emptyList(),
-    val notes: String = "" // Added notes field
+    val notes: String = "",
+    val targetGrade: Double = 5.0,
+    val maxGrade: Double = 10.0
 ) {
-    fun calculateFinalGrade(): Float {
-        if (gradeEntries.isEmpty()) return 0f
 
-        val totalContribution = gradeEntries.sumOf { it.calculateContribution().toDouble() }
-        val totalMultiplier = gradeEntries.sumOf { it.multiplier.toDouble() }
+    fun calculateFinalGrade(): Double {
+        if (gradeEntries.isEmpty()) return 0.0
 
-        return if (totalMultiplier > 0) {
-            (totalContribution / totalMultiplier).toFloat()
-        } else {
-            0f
-        }
+        val totalWeight = gradeEntries.sumOf { it.weight }
+        if (totalWeight == 0.0) return 0.0
+
+        val totalPoints = gradeEntries.sumOf { it.grade * it.weight }
+        val finalGrade = totalPoints / totalWeight
+
+        return BigDecimal(finalGrade).setScale(2, RoundingMode.HALF_DOWN).toDouble()
     }
 
     fun addGradeEntry(entry: GradeEntry): CourseGrade {

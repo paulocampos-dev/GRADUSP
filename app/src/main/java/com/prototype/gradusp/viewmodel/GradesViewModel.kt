@@ -1,5 +1,6 @@
 package com.prototype.gradusp.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.prototype.gradusp.data.model.CourseGrade
@@ -14,10 +15,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class GradesViewModel @Inject constructor(
-    private val gradesRepository: GradesRepository
+    private val gradesRepository: GradesRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    // Get courses from repository and convert it to StateFlow
+    val isAddCourseDialogVisible = savedStateHandle.getStateFlow("show_add_course_dialog", false)
+
     val courses: StateFlow<List<CourseGrade>> = gradesRepository.coursesFlow
         .stateIn(
             scope = viewModelScope,
@@ -25,27 +28,27 @@ class GradesViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    // Helper method to save courses
+    fun onAddCourseDialogDismissed() {
+        savedStateHandle["show_add_course_dialog"] = false
+    }
+
     private fun saveCourses(updatedCourses: List<CourseGrade>) {
         viewModelScope.launch {
             gradesRepository.saveCourses(updatedCourses)
         }
     }
 
-    // Add a new course
     fun addCourse(name: String) {
         val newCourse = CourseGrade(name = name)
         val updatedCourses = courses.value + newCourse
         saveCourses(updatedCourses)
     }
 
-    // Remove a course
     fun removeCourse(courseId: String) {
         val updatedCourses = courses.value.filter { it.id != courseId }
         saveCourses(updatedCourses)
     }
 
-    // Update course name
     fun updateCourseName(courseId: String, newName: String) {
         val updatedCourses = courses.value.map {
             if (it.id == courseId) it.copy(name = newName) else it
@@ -53,7 +56,6 @@ class GradesViewModel @Inject constructor(
         saveCourses(updatedCourses)
     }
 
-    // Update course notes
     fun updateCourseNotes(courseId: String, notes: String) {
         val updatedCourses = courses.value.map { course ->
             if (course.id == courseId) {
@@ -65,12 +67,12 @@ class GradesViewModel @Inject constructor(
         saveCourses(updatedCourses)
     }
 
-    // Add a grade entry to a course
-    fun addGradeEntry(courseId: String, name: String, grade: Float, multiplier: Float) {
+    // Updated to use Double for grade and weight
+    fun addGradeEntry(courseId: String, name: String, grade: Double, weight: Double) {
         val entry = GradeEntry(
             name = name,
             grade = grade,
-            multiplier = multiplier
+            weight = weight
         )
 
         val updatedCourses = courses.value.map { course ->
@@ -83,7 +85,6 @@ class GradesViewModel @Inject constructor(
         saveCourses(updatedCourses)
     }
 
-    // Update an existing grade entry
     fun updateGradeEntry(courseId: String, entry: GradeEntry) {
         val updatedCourses = courses.value.map { course ->
             if (course.id == courseId) {
@@ -95,7 +96,6 @@ class GradesViewModel @Inject constructor(
         saveCourses(updatedCourses)
     }
 
-    // Remove a grade entry
     fun removeGradeEntry(courseId: String, entryId: String) {
         val updatedCourses = courses.value.map { course ->
             if (course.id == courseId) {

@@ -1,5 +1,7 @@
 package com.prototype.gradusp
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -33,7 +35,18 @@ fun MainUi(
 
     Scaffold(
         topBar = { GraduspTitleBar(screenTitle = currentScreenTitle) },
-        bottomBar = { BottomNavigationBar(navController) }
+        bottomBar = { BottomNavigationBar(navController) },
+        floatingActionButton = {
+            if (currentRoute == Screen.Grades.route) {
+                FloatingActionButton(
+                    onClick = {
+                        navController.currentBackStackEntry?.savedStateHandle?.set("show_add_course_dialog", true)
+                    }
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Adicionar Disciplina")
+                }
+            }
+        }
     ) { padding ->
         NavGraph(navController, padding)
     }
