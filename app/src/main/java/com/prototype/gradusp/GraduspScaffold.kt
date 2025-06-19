@@ -15,27 +15,16 @@ import com.prototype.gradusp.navigation.NavGraph
 import com.prototype.gradusp.ui.components.base.BottomNavigationBar
 import com.prototype.gradusp.ui.components.dialogs.WelcomeDialog
 import com.prototype.gradusp.utils.FirstLaunchManager
-import com.prototype.gradusp.viewmodel.SettingsViewModel
-import kotlinx.coroutines.flow.collect
+import com.prototype.gradusp.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 @Composable
-fun GraduspApp(
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+fun GraduspScaffold(
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-
-    // State for welcome dialog
-    var showWelcomeDialog by remember { mutableStateOf(false) }
-
-    // Check if this is the first launch
-    LaunchedEffect(key1 = "checkFirstLaunch") {
-        val isFirstLaunch = FirstLaunchManager.isFirstLaunch(context).first()
-        showWelcomeDialog = isFirstLaunch
-    }
+    val uiState by mainViewModel.uiState.collectAsState()
 
     Scaffold(
         bottomBar = { BottomNavigationBar(navController) }
@@ -44,14 +33,10 @@ fun GraduspApp(
     }
 
     // Show welcome dialog if it's the first launch
-    if (showWelcomeDialog) {
+    if (uiState.showWelcomeDialog) {
         WelcomeDialog(
             onDismiss = {
-                showWelcomeDialog = false
-                // Mark first launch as completed
-                kotlinx.coroutines.MainScope().launch {
-                    FirstLaunchManager.setFirstLaunchCompleted(context)
-                }
+                mainViewModel.onWelcomeDialogDismissed()
             }
         )
     }
