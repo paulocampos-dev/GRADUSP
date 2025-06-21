@@ -1,6 +1,7 @@
 package com.prototype.gradusp.ui.components.base
 
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
@@ -28,7 +29,7 @@ fun BottomNavigationBar(navController: NavHostController) {
 
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.height(56.dp)
+        modifier = Modifier.wrapContentHeight()
     ) {
         items.forEach { screen ->
             NavigationBarItem(

@@ -1,10 +1,10 @@
 package com.prototype.gradusp.viewmodel
 
-import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.data.UserPreferencesRepository
+import com.prototype.gradusp.data.repository.SyncResult
 import com.prototype.gradusp.data.repository.UspDataRepository
 import com.prototype.gradusp.ui.settings.SettingsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,43 +21,48 @@ class SettingsViewModel @Inject constructor(
     private val uspDataRepository: UspDataRepository
 ) : ViewModel() {
 
-    private val _UiState = MutableStateFlow(SettingsUiState())
-    val uiState : Flow<SettingsUiState> = _UiState.asStateFlow()
+    private val _uiState = MutableStateFlow(SettingsUiState())
+    val uiState : Flow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
         loadCampusData()
 
         viewModelScope.launch {
             uspDataRepository.lastUpdateTime.collect { time ->
-                _UiState.update { it.copy(lastUpdateTime = time) }
+                _uiState.update { it.copy(lastUpdateTime = time) }
             }
         }
         viewModelScope.launch {
             uspDataRepository.isUpdateInProgress.collect { inProgress ->
-                _UiState.update { it.copy(isUpdateInProgress = inProgress) }
+                _uiState.update { it.copy(isUpdateInProgress = inProgress) }
             }
         }
         viewModelScope.launch {
             uspDataRepository.updateProgress.collect { updateProgress ->
-                _UiState.update { it.copy(updateProgress = updateProgress) }
+                _uiState.update { it.copy(updateProgress = updateProgress) }
             }
         }
     }
 
     private fun loadCampusData() {
         viewModelScope.launch {
-            _UiState.update { it.copy(isUpdateInProgress = true) }
+            _uiState.update { it.copy(isUpdateInProgress = true) }
             val campusMap = uspDataRepository.getCampusUnits()
-            _UiState.update { it.copy(campusMap = campusMap, isUpdateInProgress = false) }
+            _uiState.update { it.copy(campusMap = campusMap, isUpdateInProgress = false) }
         }
     }
 
     fun triggerUspDataUpdate() {
         viewModelScope.launch {
-            _UiState.update { it.copy(updateResult = null) }
-            val success = uspDataRepository.updateUspData()
-            val resultMessage = if (success) "Dados atualizados com sucesso!" else "Erro ao atualizar dados."
-            _UiState.update { it.copy(updateResult = resultMessage) }
+            _uiState.update { it.copy(updateResult = null) }
+            when (val result = uspDataRepository.updateUspData()) {
+                is SyncResult.Success -> {
+                    _uiState.update { it.copy(updateResult = "Dados atualizados com sucesso!") }
+                }
+                is SyncResult.Error -> {
+                    _uiState.update { it.copy(updateResult = "Erro: ${result.message}") }
+                }
+            }
         }
     }
 

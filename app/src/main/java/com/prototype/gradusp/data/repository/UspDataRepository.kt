@@ -26,35 +26,49 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import java.io.File
 import java.util.Date
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+
+sealed class SyncResult {
+    data object Success : SyncResult()
+    data class Error(val message: String) : SyncResult()
+}
 
 @Singleton
 class UspDataRepository @Inject constructor(
     private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository
 ) {
-    private val parser = UspParser(context)
     private val gson = Gson()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(120, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
+    private val parser = UspParser(context, client)
 
     companion object {
         private val LAST_UPDATE_KEY = longPreferencesKey("usp_last_update")
         private val UPDATE_IN_PROGRESS_KEY = booleanPreferencesKey("usp_update_in_progress")
         private val CAMPUS_UNITS_KEY = stringPreferencesKey("campus_units")
+
+        private const val LECTURES_DIR_NAME = "lectures"
+        private const val COURSES_DIR_NAME = "courses"
+        private const val TEMP_LECTURES_DIR_NAME = "lectures_temp"
+        private const val TEMP_COURSES_DIR_NAME = "courses_temp"
+        private const val LECTURE_FETCH_BATCH_SIZE = 20
         private const val TAG = "UspDataRepository"
     }
 
-    val lastUpdateTime: Flow<Long> = context.dataStore.data
-        .map { preferences -> preferences[LAST_UPDATE_KEY] ?: 0L }
-
-    val isUpdateInProgress: Flow<Boolean> = context.dataStore.data
-        .map { preferences -> preferences[UPDATE_IN_PROGRESS_KEY] ?: false }
-
-    // Add progress tracking
+    val lastUpdateTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_KEY] ?: 0L }
+    val isUpdateInProgress: Flow<Boolean> = context.dataStore.data.map { it[UPDATE_IN_PROGRESS_KEY] ?: false }
     private val _updateProgress = MutableStateFlow(0f)
     val updateProgress: StateFlow<Float> = _updateProgress
+
+    // ... getCampusUnits, getLecture, getCourses remain the same ...
 
     suspend fun getCampusUnits(): Map<String, List<String>> {
         // Try to load from preferences first
@@ -85,7 +99,6 @@ class UspDataRepository @Inject constructor(
         return parser.fetchLecture(code)
     }
 
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun getCourses(unitCode: String): List<Course> {
         // Try to load from storage
         val file = File(context.filesDir, "courses/${unitCode}.json")
@@ -102,149 +115,94 @@ class UspDataRepository @Inject constructor(
         return parser.fetchCoursesForUnit(unitCode)
     }
 
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    suspend fun updateUspData(): Boolean {
-        try {
-            // Reset progress
-            _updateProgress.value = 0f
+    suspend fun updateUspData(): SyncResult {
+        val tempLecturesDir = File(context.filesDir, TEMP_LECTURES_DIR_NAME)
+        val tempCoursesDir = File(context.filesDir, TEMP_COURSES_DIR_NAME)
 
-            // Set update in progress flag
-            context.dataStore.edit { preferences ->
-                preferences[UPDATE_IN_PROGRESS_KEY] = true
+        try {
+            _updateProgress.value = 0f
+            context.dataStore.edit { it[UPDATE_IN_PROGRESS_KEY] = true }
+
+            // Cleanup and create temp directories
+            withContext(Dispatchers.IO) {
+                if (tempLecturesDir.exists()) tempLecturesDir.deleteRecursively()
+                if (tempCoursesDir.exists()) tempCoursesDir.deleteRecursively()
+                tempLecturesDir.mkdirs()
+                tempCoursesDir.mkdirs()
             }
 
-            // Fetch and store campus and units
+            // --- Start Fetching Data ---
             _updateProgress.value = 0.1f
             val campusUnits = parser.fetchCampusUnits()
-            context.dataStore.edit { preferences ->
-                preferences[CAMPUS_UNITS_KEY] = gson.toJson(campusUnits)
-            }
+            context.dataStore.edit { it[CAMPUS_UNITS_KEY] = gson.toJson(campusUnits) }
             _updateProgress.value = 0.2f
 
-            // CLEANUP STEP: Delete existing data directories and recreate them
-            withContext(Dispatchers.IO) {
-                // Delete courses directory
-                val coursesDir = File(context.filesDir, "courses")
-                if (coursesDir.exists()) {
-                    coursesDir.deleteRecursively()
-                }
-                coursesDir.mkdirs()
-
-                // Delete lectures directory
-                val lecturesDir = File(context.filesDir, "lectures")
-                if (lecturesDir.exists()) {
-                    lecturesDir.deleteRecursively()
-                }
-                lecturesDir.mkdirs()
-
-                Log.d("UspParser", "Cleaned up existing data directories")
-            }
-
-            // Create directories for storage
-            File(context.filesDir, "courses").mkdirs()
-            File(context.filesDir, "lectures").mkdirs()
-
-            // Get selected schools from preferences
             val selectedSchools = userPreferencesRepository.selectedSchoolsFlow.first()
+            val unitsToProcess = if (selectedSchools.isEmpty()) campusUnits.values.flatten().take(3) else selectedSchools.toList()
+            if (unitsToProcess.isEmpty()) return SyncResult.Error("Nenhuma unidade selecionada para atualização.")
 
-            // Determine which units to process
-            val unitsToProcess = if (selectedSchools.isEmpty()) {
-                // Process a sample if none selected (to avoid processing everything)
-                campusUnits.values.flatten().take(3)
-            } else {
-                // Process only selected schools
-                selectedSchools.toList()
-            }
+            val progressPerUnit = 0.7f / unitsToProcess.size.toFloat()
 
-            // Total progress allocation:
-            // - 20% for setup (0.0-0.2)
-            // - 60% for processing units and their disciplines (0.2-0.8)
-            // - 20% for finishing up (0.8-1.0)
-            val progressPerUnit = 0.6f / unitsToProcess.size.toFloat()
-
-            // Track progress through units
             for ((unitIndex, unit) in unitsToProcess.withIndex()) {
+                val unitCode = parser.getUnitCode(unit) ?: continue
                 val unitStartProgress = 0.2f + (progressPerUnit * unitIndex)
                 _updateProgress.value = unitStartProgress
 
-                val unitCode = parser.getUnitCode(unit) ?: continue
-                Log.d(TAG, "Processing unit: $unit ($unitCode)")
-
-                // Fetch courses for this unit
+                // Fetch and save courses to temp dir
                 val courses = parser.fetchCoursesForUnit(unitCode)
-
-                // Save courses
                 withContext(Dispatchers.IO) {
-                    File(context.filesDir, "courses/${unitCode}.json").writer().use {
-                        gson.toJson(courses, it)
-                    }
+                    File(tempCoursesDir, "${unitCode}.json").writer().use { gson.toJson(courses, it) }
                 }
 
-                // Fetch ALL disciplines for this unit directly
+                // Fetch and save all lectures for the unit to temp dir
                 val disciplineCodes = parser.fetchAllDisciplinesForUnit(unitCode)
-                Log.d(TAG, "Found ${disciplineCodes.size} disciplines for $unit")
-
-                // Process disciplines in parallel batches to avoid overwhelming the network
-                val batchSize = 20
-                val batches = disciplineCodes.chunked(batchSize)
-
-                // Allocate progress for discipline processing within this unit
+                val batches = disciplineCodes.chunked(LECTURE_FETCH_BATCH_SIZE)
                 val progressPerBatch = progressPerUnit / batches.size.toFloat()
 
                 for ((batchIndex, batch) in batches.withIndex()) {
-                    val batchProgress = unitStartProgress + (progressPerBatch * batchIndex)
-                    _updateProgress.value = batchProgress
-
-                    // Process each batch concurrently
+                    _updateProgress.value = unitStartProgress + (progressPerBatch * batchIndex)
                     coroutineScope {
-                        val deferredResults = batch.map { code ->
+                        batch.map { code ->
                             async(Dispatchers.IO) {
-                                try {
-                                    val lecture = parser.fetchLecture(code)
-                                    if (lecture != null) {
-                                        File(context.filesDir, "lectures/${lecture.code}.json").writer().use {
-                                            gson.toJson(lecture, it)
-                                        }
-                                    }
-                                    true
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Error fetching lecture $code", e)
-                                    false
+                                parser.fetchLecture(code)?.let { lecture ->
+                                    File(tempLecturesDir, "${lecture.code}.json").writer().use { gson.toJson(lecture, it) }
                                 }
                             }
-                        }
-                        deferredResults.awaitAll()
+                        }.awaitAll()
                     }
                 }
             }
 
-            // Final progress before completing
+            // --- Finalize: Atomic Swap ---
             _updateProgress.value = 0.95f
+            withContext(Dispatchers.IO) {
+                val lecturesDir = File(context.filesDir, LECTURES_DIR_NAME)
+                val coursesDir = File(context.filesDir, COURSES_DIR_NAME)
 
-            // Update last update time
-            context.dataStore.edit { preferences ->
-                preferences[LAST_UPDATE_KEY] = Date().time
-                preferences[UPDATE_IN_PROGRESS_KEY] = false
+                if (lecturesDir.exists()) lecturesDir.deleteRecursively()
+                if (coursesDir.exists()) coursesDir.deleteRecursively()
+
+                tempLecturesDir.renameTo(lecturesDir)
+                tempCoursesDir.renameTo(coursesDir)
             }
 
-            // Complete progress
-            _updateProgress.value = 1.0f
-
-            return true
+            context.dataStore.edit {
+                it[LAST_UPDATE_KEY] = Date().time
+            }
+            return SyncResult.Success
         } catch (e: Exception) {
             Log.e(TAG, "Error updating USP data", e)
-            // Update failed
-            context.dataStore.edit { preferences ->
-                preferences[UPDATE_IN_PROGRESS_KEY] = false
+            return SyncResult.Error(e.message ?: "Ocorreu um erro desconhecido.")
+        } finally {
+            withContext(Dispatchers.IO) {
+                if (tempLecturesDir.exists()) tempLecturesDir.deleteRecursively()
+                if (tempCoursesDir.exists()) tempCoursesDir.deleteRecursively()
             }
             _updateProgress.value = 0f
-            return false
+            context.dataStore.edit { it[UPDATE_IN_PROGRESS_KEY] = false }
         }
     }
 
-    /**
-     * Gets the count of available lectures
-     */
     suspend fun getAvailableLecturesCount(): Int = withContext(Dispatchers.IO) {
         val lecturesDir = File(context.filesDir, "lectures")
         if (!lecturesDir.exists()) return@withContext 0
@@ -253,10 +211,6 @@ class UspDataRepository @Inject constructor(
         return@withContext lectureFiles?.size ?: 0
     }
 
-    /**
-     * Gets lectures for a specific unit from local storage
-     */
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     suspend fun getLecturesForUnit(unitCode: String): List<Lecture> = withContext(Dispatchers.IO) {
         val lecturesDir = File(context.filesDir, "lectures")
         if (!lecturesDir.exists()) return@withContext emptyList()
@@ -291,9 +245,6 @@ class UspDataRepository @Inject constructor(
         }
     }
 
-    /**
-     * Searches for lectures across all stored lectures
-     */
     suspend fun searchLectures(query: String, limit: Int = 50): List<Lecture> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
 
