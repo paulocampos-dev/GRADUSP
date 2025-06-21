@@ -1,5 +1,6 @@
 package com.prototype.gradusp.ui.grades
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,11 +28,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.prototype.gradusp.data.model.CourseGrade
+import com.prototype.gradusp.data.model.GradeEntry
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.viewmodel.GradesViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GradesScreen(
     viewModel: GradesViewModel = hiltViewModel()
@@ -41,6 +44,48 @@ fun GradesScreen(
     val showAddCourseDialog by viewModel.isAddCourseDialogVisible.collectAsState()
     var newCourseName by remember { mutableStateOf("") }
 
+    GradesScreenContent(
+        courses = courses,
+        showAddCourseDialog = showAddCourseDialog,
+        newCourseName = newCourseName,
+        onNewCourseNameChange = { newCourseName = it },
+        onAddCourseDialogDismiss = {
+            viewModel.onAddCourseDialogDismissed()
+            newCourseName = ""
+        },
+        onAddCourse = {
+            if (newCourseName.isNotBlank()) {
+                viewModel.addCourse(newCourseName)
+                newCourseName = ""
+                viewModel.onAddCourseDialogDismissed()
+            }
+        },
+        onUpdateCourseName = viewModel::updateCourseName,
+        onUpdateCourseNotes = viewModel::updateCourseNotes,
+        onAddGradeEntry = { courseId, name, grade, weight ->
+            viewModel.addGradeEntry(courseId, name, grade, weight)
+        },
+        onUpdateGradeEntry = viewModel::updateGradeEntry,
+        onRemoveGradeEntry = viewModel::removeGradeEntry,
+        onRemoveCourse = viewModel::removeCourse
+    )
+}
+
+@Composable
+private fun GradesScreenContent(
+    courses: List<CourseGrade>,
+    showAddCourseDialog: Boolean,
+    newCourseName: String,
+    onNewCourseNameChange: (String) -> Unit,
+    onAddCourseDialogDismiss: () -> Unit,
+    onAddCourse: () -> Unit,
+    onUpdateCourseName: (String, String) -> Unit,
+    onUpdateCourseNotes: (String, String) -> Unit,
+    onAddGradeEntry: (String, String, Double, Double) -> Unit,
+    onUpdateGradeEntry: (String, GradeEntry) -> Unit,
+    onRemoveGradeEntry: (String, String) -> Unit,
+    onRemoveCourse: (String) -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -50,7 +95,7 @@ fun GradesScreen(
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                verticalArrangement = Arrangement.Center
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -84,22 +129,22 @@ fun GradesScreen(
                     CourseCard(
                         course = course,
                         onUpdateName = { newName ->
-                            viewModel.updateCourseName(course.id, newName)
+                            onUpdateCourseName(course.id, newName)
                         },
                         onUpdateNotes = { notes ->
-                            viewModel.updateCourseNotes(course.id, notes)
+                            onUpdateCourseNotes(course.id, notes)
                         },
                         onAddGradeEntry = { name, grade, weight ->
-                            viewModel.addGradeEntry(course.id, name, grade, weight)
+                            onAddGradeEntry(course.id, name, grade, weight)
                         },
                         onUpdateGradeEntry = { entry ->
-                            viewModel.updateGradeEntry(course.id, entry)
+                            onUpdateGradeEntry(course.id, entry)
                         },
                         onRemoveGradeEntry = { entryId ->
-                            viewModel.removeGradeEntry(course.id, entryId)
+                            onRemoveGradeEntry(course.id, entryId)
                         },
                         onRemoveCourse = {
-                            viewModel.removeCourse(course.id)
+                            onRemoveCourse(course.id)
                         }
                     )
                 }
@@ -110,28 +155,19 @@ fun GradesScreen(
 
         if (showAddCourseDialog) {
             AlertDialog(
-                onDismissRequest = {
-                    viewModel.onAddCourseDialogDismissed()
-                    newCourseName = ""
-                },
+                onDismissRequest = onAddCourseDialogDismiss,
                 title = { Text("Adicionar Disciplina") },
                 text = {
                     OutlinedTextField(
                         value = newCourseName,
-                        onValueChange = { newCourseName = it },
+                        onValueChange = onNewCourseNameChange,
                         label = { Text("Nome da Disciplina") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 },
                 confirmButton = {
                     Button(
-                        onClick = {
-                            if (newCourseName.isNotBlank()) {
-                                viewModel.addCourse(newCourseName)
-                                newCourseName = ""
-                                viewModel.onAddCourseDialogDismissed()
-                            }
-                        },
+                        onClick = onAddCourse,
                         enabled = newCourseName.isNotBlank()
                     ) {
                         Text("Adicionar")
@@ -139,15 +175,71 @@ fun GradesScreen(
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = {
-                            viewModel.onAddCourseDialogDismissed()
-                            newCourseName = ""
-                        }
+                        onClick = onAddCourseDialogDismiss
                     ) {
                         Text("Cancelar")
                     }
                 }
             )
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Grades Screen (Empty)")
+@Composable
+fun GradesScreenPreview_EmptyState() {
+    GRADUSPTheme {
+        GradesScreenContent(
+            courses = emptyList(),
+            showAddCourseDialog = false,
+            newCourseName = "",
+            onNewCourseNameChange = {},
+            onAddCourseDialogDismiss = {},
+            onAddCourse = {},
+            onUpdateCourseName = { _, _ -> },
+            onUpdateCourseNotes = { _, _ -> },
+            onAddGradeEntry = { _, _, _, _ -> },
+            onUpdateGradeEntry = { _, _ -> },
+            onRemoveGradeEntry = { _, _ -> },
+            onRemoveCourse = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Grades Screen (With Courses)")
+@Composable
+fun GradesScreenPreview_WithCourses() {
+    val sampleCourses = listOf(
+        CourseGrade(
+            name = "Cálculo I",
+            gradeEntries = listOf(
+                GradeEntry(name = "P1", grade = 8.5, weight = 1.0),
+                GradeEntry(name = "P2", grade = 7.0, weight = 1.0),
+            )
+        ),
+        CourseGrade(
+            name = "Física para Computação",
+            gradeEntries = listOf(
+                GradeEntry(name = "Prova 1", grade = 9.0, weight = 2.0),
+                GradeEntry(name = "Trabalho", grade = 10.0, weight = 1.0),
+            )
+        )
+    )
+
+    GRADUSPTheme {
+        GradesScreenContent(
+            courses = sampleCourses,
+            showAddCourseDialog = false,
+            newCourseName = "",
+            onNewCourseNameChange = {},
+            onAddCourseDialogDismiss = {},
+            onAddCourse = {},
+            onUpdateCourseName = { _, _ -> },
+            onUpdateCourseNotes = { _, _ -> },
+            onAddGradeEntry = { _, _, _, _ -> },
+            onUpdateGradeEntry = { _, _ -> },
+            onRemoveGradeEntry = { _, _ -> },
+            onRemoveCourse = {}
+        )
     }
 }

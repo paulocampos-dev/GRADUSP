@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -65,6 +66,7 @@ import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.model.eventColors
 import com.prototype.gradusp.data.parser.UspParser
 import com.prototype.gradusp.data.repository.UspDataRepository
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.utils.DateTimeUtils
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -760,5 +762,16 @@ fun AddLectureDialog(
                 }
             }
         }
+    }
+}
+
+@Preview(name = "Add Event Dialog")
+@Composable
+fun AddEventDialogPreview() {
+    GRADUSPTheme {
+        AddEventDialog(
+            onDismiss = {},
+            onEventAdded = {}
+        )
     }
 }

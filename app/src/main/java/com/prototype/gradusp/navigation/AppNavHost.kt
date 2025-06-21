@@ -31,7 +31,7 @@ fun NavGraph(
             CalendarScreen()
         }
         composable(route = Screen.Grades.route) {
-            GradesScreen(navHostController)
+            GradesScreen()
         }
         composable(route = Screen.Config.route) {
             SettingsScreen()

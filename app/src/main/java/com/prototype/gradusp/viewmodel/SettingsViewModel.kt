@@ -17,7 +17,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository,
+    internal val userPreferencesRepository: UserPreferencesRepository,
     private val uspDataRepository: UspDataRepository
 ) : ViewModel() {
 

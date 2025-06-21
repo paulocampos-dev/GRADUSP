@@ -3,6 +3,7 @@ package com.prototype.gradusp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.prototype.gradusp.ui.MainUi
 import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import dagger.hilt.android.AndroidEntryPoint
 

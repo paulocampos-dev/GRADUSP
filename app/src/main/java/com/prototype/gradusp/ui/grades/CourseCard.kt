@@ -19,9 +19,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.data.model.CourseGrade
 import com.prototype.gradusp.data.model.GradeEntry
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import java.text.DecimalFormat
 
 @Composable
@@ -278,6 +280,56 @@ private fun NewGradeEntryForm(
             ) {
                 Text("Salvar")
             }
+        }
+    }
+}
+
+
+@Preview(showBackground = true, name = "Course Card Preview")
+@Composable
+fun CourseCardPreview() {
+    val sampleCourseWithGrades = CourseGrade(
+        id = "1",
+        name = "Engenharia de Software",
+        gradeEntries = listOf(
+            GradeEntry(id = "g1", name = "Prova 1", grade = 8.5, weight = 1.0),
+            GradeEntry(id = "g2", name = "Trabalho Prático", grade = 10.0, weight = 1.5),
+        ),
+        targetGrade = 7.0
+    )
+
+    val sampleCourseEmpty = CourseGrade(
+        id = "2",
+        name = "Introdução à Computação",
+        gradeEntries = emptyList(),
+        targetGrade = 5.0
+    )
+
+    GRADUSPTheme {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Preview for a card with existing grade entries
+            CourseCard(
+                course = sampleCourseWithGrades,
+                onUpdateName = {},
+                onUpdateNotes = {},
+                onAddGradeEntry = { _, _, _ -> },
+                onUpdateGradeEntry = {},
+                onRemoveGradeEntry = {},
+                onRemoveCourse = {}
+            )
+            // Preview for a card with no grade entries
+            CourseCard(
+                course = sampleCourseEmpty,
+                onUpdateName = {},
+                onUpdateNotes = {},
+                onAddGradeEntry = { _, _, _ -> },
+                onUpdateGradeEntry = {},
+                onRemoveGradeEntry = {},
+                onRemoveCourse = {}
+            )
         }
     }
 }

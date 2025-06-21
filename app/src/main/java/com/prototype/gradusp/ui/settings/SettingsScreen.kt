@@ -35,11 +35,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.prototype.gradusp.data.AnimationSpeed
 import com.prototype.gradusp.ui.components.VersionDisplay
 import com.prototype.gradusp.ui.components.config.SchoolSelectionCard
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,6 +56,29 @@ fun SettingsScreen(
     val selectedSchools by viewModel.selectedSchools.collectAsState(initial = emptySet())
     val uiState by viewModel.uiState.collectAsState(initial = SettingsUiState())
 
+    SettingsScreenContent(
+        uiState = uiState,
+        animationSpeed = animationSpeed,
+        invertSwipe = invertSwipe,
+        selectedSchools = selectedSchools,
+        onAnimationSpeedSelected = viewModel::updateAnimationSpeed,
+        onInvertSwipeChange = viewModel::updateInvertSwipeDirection,
+        onSelectedSchoolsChange = viewModel::updateSelectedSchools,
+        onTriggerUspDataUpdate = viewModel::triggerUspDataUpdate
+    )
+}
+
+@Composable
+private fun SettingsScreenContent(
+    uiState: SettingsUiState,
+    animationSpeed: AnimationSpeed,
+    invertSwipe: Boolean,
+    selectedSchools: Set<String>,
+    onAnimationSpeedSelected: (AnimationSpeed) -> Unit,
+    onInvertSwipeChange: (Boolean) -> Unit,
+    onSelectedSchoolsChange: (Set<String>) -> Unit,
+    onTriggerUspDataUpdate: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -68,7 +93,7 @@ fun SettingsScreen(
 
         AnimationSpeedDropdown(
             selectedSpeed = animationSpeed,
-            onSpeedSelected = viewModel::updateAnimationSpeed
+            onSpeedSelected = onAnimationSpeedSelected
         )
 
         Spacer(modifier = Modifier.padding(16.dp))
@@ -94,7 +119,7 @@ fun SettingsScreen(
             )
             Switch(
                 checked = invertSwipe,
-                onCheckedChange = viewModel::updateInvertSwipeDirection
+                onCheckedChange = onInvertSwipeChange
             )
         }
 
@@ -121,7 +146,7 @@ fun SettingsScreen(
             SchoolSelectionCard(
                 campusMap = uiState.campusMap,
                 selectedSchools = selectedSchools,
-                onSelectionChanged = viewModel::updateSelectedSchools,
+                onSelectionChanged = onSelectedSchoolsChange,
                 isLoading = uiState.isUpdateInProgress
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -176,7 +201,7 @@ fun SettingsScreen(
                 }
 
                 Button(
-                    onClick = viewModel::triggerUspDataUpdate,
+                    onClick = onTriggerUspDataUpdate,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !uiState.isUpdateInProgress
                 ) {
@@ -196,7 +221,7 @@ fun SettingsScreen(
                     Text(
                         text = result,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (result.startsWith("Falha")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        color = if (result.startsWith("Erro")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -212,9 +237,13 @@ fun SettingsScreen(
         )
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Apoie o Desenvolvedor", /* ... */)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("GRADUSP é um aplicativo gratuito...", /* ... */)
+                Text(
+                    "Apoie o Desenvolvedor",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("GRADUSP é um aplicativo gratuito e de código aberto. Se ele te ajuda, considere apoiar o desenvolvimento assistindo a um anúncio rápido.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = { /* TODO */ }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text("Assistir um anúncio para apoiar")
@@ -264,5 +293,58 @@ fun AnimationSpeedDropdown(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Settings Screen")
+@Composable
+fun SettingsScreenPreview() {
+    val sampleCampusMap = mapOf(
+        "São Carlos" to listOf("Instituto de Ciências Matemáticas e de Computação (ICMC)", "Escola de Engenharia de São Carlos (EESC)"),
+        "São Paulo" to listOf("Escola Politécnica (Poli)", "Faculdade de Economia, Administração e Contabilidade (FEA)")
+    )
+
+    GRADUSPTheme {
+        SettingsScreenContent(
+            uiState = SettingsUiState(
+                campusMap = sampleCampusMap,
+                isLoadingCampusData = false,
+                lastUpdateTime = System.currentTimeMillis() - 1000 * 60 * 60 * 3, // 3 hours ago
+                isUpdateInProgress = false,
+                updateProgress = 0f,
+                updateResult = null
+            ),
+            animationSpeed = AnimationSpeed.MÉDIA,
+            invertSwipe = false,
+            selectedSchools = setOf("Instituto de Ciências Matemáticas e de Computação (ICMC)"),
+            onAnimationSpeedSelected = {},
+            onInvertSwipeChange = {},
+            onSelectedSchoolsChange = {},
+            onTriggerUspDataUpdate = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Settings Screen (Updating)")
+@Composable
+fun SettingsScreenUpdatingPreview() {
+    GRADUSPTheme {
+        SettingsScreenContent(
+            uiState = SettingsUiState(
+                campusMap = emptyMap(),
+                isLoadingCampusData = false,
+                lastUpdateTime = System.currentTimeMillis() - 1000 * 60 * 60 * 24, // 1 day ago
+                isUpdateInProgress = true,
+                updateProgress = 0.65f,
+                updateResult = null
+            ),
+            animationSpeed = AnimationSpeed.RÁPIDO,
+            invertSwipe = true,
+            selectedSchools = emptySet(),
+            onAnimationSpeedSelected = {},
+            onInvertSwipeChange = {},
+            onSelectedSchoolsChange = {},
+            onTriggerUspDataUpdate = {}
+        )
     }
 }
