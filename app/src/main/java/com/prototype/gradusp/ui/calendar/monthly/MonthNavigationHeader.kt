@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.utils.DateTimeUtils
 import java.time.YearMonth
 
@@ -85,5 +87,31 @@ fun MonthNavigationHeader(
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Month Header - Not Current Month")
+@Composable
+fun MonthNavigationHeaderPreview() {
+    GRADUSPTheme {
+        MonthNavigationHeader(
+            currentMonth = YearMonth.now().minusMonths(2),
+            onPreviousMonth = {},
+            onNextMonth = {},
+            onTodayClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Month Header - Current Month")
+@Composable
+fun MonthNavigationHeaderCurrentMonthPreview() {
+    GRADUSPTheme {
+        MonthNavigationHeader(
+            currentMonth = YearMonth.now(),
+            onPreviousMonth = {},
+            onNextMonth = {},
+            onTodayClick = {}
+        )
     }
 }

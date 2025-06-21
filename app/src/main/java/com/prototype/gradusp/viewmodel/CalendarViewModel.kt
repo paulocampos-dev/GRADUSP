@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.prototype.gradusp.data.UserPreferencesRepository
 import com.prototype.gradusp.data.model.Classroom
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.EventImportance
@@ -11,14 +12,16 @@ import com.prototype.gradusp.data.model.EventOccurrence
 import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.model.eventColors
 import com.prototype.gradusp.data.repository.EventRepository
+import com.prototype.gradusp.ui.calendar.CalendarUiState
+import com.prototype.gradusp.ui.calendar.CalendarView
 import com.prototype.gradusp.utils.DateTimeUtils
+import com.prototype.gradusp.utils.EventProcessingUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -26,148 +29,144 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
-    // Calendar state
-    private val _selectedDate = MutableStateFlow(LocalDate.now())
-    val selectedDate: StateFlow<LocalDate> = _selectedDate
 
-    private val _selectedMonth = MutableStateFlow(YearMonth.now())
-    val selectedMonth: StateFlow<YearMonth> = _selectedMonth
+    private val _uiState = MutableStateFlow(CalendarUiState())
+    val uiState = _uiState.asStateFlow()
 
-    // All events
-    val events = eventRepository.events.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
-
-    // Update event
-    fun updateEvent(event: Event) {
+    init {
+        // Combine multiple flows to build the final UI state
         viewModelScope.launch {
-            eventRepository.updateEvent(event)
+            combine(
+                eventRepository.events,
+                userPreferencesRepository.animationSpeedFlow,
+                userPreferencesRepository.invertSwipeDirectionFlow,
+            ) { events, animationSpeed, invertSwipe ->
+                // This block will be re-executed whenever any of the source flows emit a new value
+                val currentState = _uiState.value
+                val dailyTimeBlocks = EventProcessingUtil.processEventsIntoTimeBlocks(
+                    events = events,
+                    dayOfWeek = currentState.selectedDate.dayOfWeek,
+                    startHour = 7,
+                    endHour = 22
+                )
+                val monthGrid = DateTimeUtils.getDatesForMonthGrid(currentState.selectedMonth)
+
+                currentState.copy(
+                    events = events,
+                    animationSpeed = animationSpeed,
+                    invertSwipeDirection = invertSwipe,
+                    dailyViewTimeBlocks = dailyTimeBlocks,
+                    daysInMonthGrid = monthGrid
+                )
+            }.collect { newState ->
+                _uiState.value = newState
+            }
         }
     }
 
-    // Add event
-    fun addEvent(event: Event) {
-        viewModelScope.launch {
-            eventRepository.addEvent(event)
+    // --- Event Handlers ---
+
+    fun onViewSelected(view: CalendarView) {
+        _uiState.update { it.copy(selectedView = view) }
+    }
+
+    fun onDateSelected(date: LocalDate) {
+        _uiState.update {
+            it.copy(
+                selectedDate = date,
+                selectedMonth = YearMonth.from(date)
+            )
+        }
+        // Recalculate daily and monthly views
+        recalculateDerivedState()
+    }
+
+    fun onPreviousDay() = onDateSelected(_uiState.value.selectedDate.minusDays(1))
+    fun onNextDay() = onDateSelected(_uiState.value.selectedDate.plusDays(1))
+
+    fun onPreviousMonth() {
+        val newMonth = _uiState.value.selectedMonth.minusMonths(1)
+        _uiState.update { it.copy(selectedMonth = newMonth) }
+        recalculateDerivedState()
+    }
+
+    fun onNextMonth() {
+        val newMonth = _uiState.value.selectedMonth.plusMonths(1)
+        _uiState.update { it.copy(selectedMonth = newMonth) }
+        recalculateDerivedState()
+    }
+
+    fun onTodayClick() = onDateSelected(LocalDate.now())
+
+    fun onAddEventClick() {
+        _uiState.update { it.copy(showAddEventDialog = true) }
+    }
+
+    fun onAddLectureClick() {
+        _uiState.update { it.copy(showAddLectureDialog = true) }
+    }
+
+    fun onDialogDismiss() {
+        _uiState.update {
+            it.copy(
+                showAddEventDialog = false,
+                showAddLectureDialog = false,
+                eventForDetailsDialog = null,
+                dateForDetailsDialog = null
+            )
         }
     }
 
-    // Delete event
-    fun deleteEvent(event: Event) {
-        viewModelScope.launch {
-            eventRepository.deleteEvent(event)
-        }
+    fun onEventClick(event: Event) {
+        _uiState.update { it.copy(eventForDetailsDialog = event) }
     }
 
-    // Navigation functions
-    fun navigateToDate(date: LocalDate) {
-        _selectedDate.value = date
-        _selectedMonth.value = YearMonth.from(date)
+    fun onDayClick(date: LocalDate) {
+        _uiState.update { it.copy(dateForDetailsDialog = date) }
     }
 
-    fun navigateToPreviousDay() {
-        _selectedDate.value = _selectedDate.value.minusDays(1)
+
+    fun addEvent(event: Event) = viewModelScope.launch {
+        eventRepository.addEvent(event)
+        onDialogDismiss() // Close dialog after adding
     }
 
-    fun navigateToNextDay() {
-        _selectedDate.value = _selectedDate.value.plusDays(1)
+    fun updateEvent(event: Event) = viewModelScope.launch {
+        eventRepository.updateEvent(event)
+        onDialogDismiss()
     }
 
-    fun navigateToPreviousMonth() {
-        _selectedMonth.value = _selectedMonth.value.minusMonths(1)
-    }
-
-    fun navigateToNextMonth() {
-        _selectedMonth.value = _selectedMonth.value.plusMonths(1)
-    }
-
-    fun navigateToToday() {
-        _selectedDate.value = LocalDate.now()
-        _selectedMonth.value = YearMonth.now()
-    }
-
-    // Helper functions for event processing
-    fun getEventsForDate(date: LocalDate): List<Event> {
-        return events.value.filter { event ->
-            event.occurrences.any { it.day == date.dayOfWeek }
-        }
-    }
-
-    fun getEventsForDayOfWeek(dayOfWeek: DayOfWeek): List<Event> {
-        return events.value.filter { event ->
-            event.occurrences.any { it.day == dayOfWeek }
-        }
+    fun deleteEvent(event: Event) = viewModelScope.launch {
+        eventRepository.deleteEvent(event)
+        onDialogDismiss()
     }
 
     fun addLectureEvent(lecture: Lecture, classroom: Classroom) {
         viewModelScope.launch {
             try {
-                // Filter out invalid schedules first
                 val validSchedules = classroom.schedules.filter { schedule ->
                     val dayString = schedule.day.lowercase().trim()
-                    // Skip headers or invalid day strings
-                    !dayString.contains("horário") &&
-                            (dayString.startsWith("seg") ||
-                                    dayString.startsWith("ter") ||
-                                    dayString.startsWith("qua") ||
-                                    dayString.startsWith("qui") ||
-                                    dayString.startsWith("sex") ||
-                                    dayString.startsWith("sab") ||
-                                    dayString.startsWith("sáb") ||
-                                    dayString.startsWith("dom"))
+                    !dayString.contains("horário") && (dayString.startsWith("seg") || dayString.startsWith("ter") || dayString.startsWith("qua") || dayString.startsWith("qui") || dayString.startsWith("sex") || dayString.startsWith("sab") || dayString.startsWith("sáb") || dayString.startsWith("dom"))
                 }
 
-                // Convert lecture and classroom to an event
                 val occurrences = validSchedules.mapNotNull { schedule ->
                     try {
-                        val day = try {
-                            DateTimeUtils.convertDayStringToDayOfWeek(schedule.day)
-                        } catch (e: Exception) {
-                            Log.e("CalendarViewModel", "Error parsing day: ${schedule.day}", e)
-                            return@mapNotNull null
-                        }
-
-                        val startTime = try {
-                            LocalTime.parse(schedule.startTime)
-                        } catch (e: Exception) {
-                            Log.e("CalendarViewModel", "Error parsing start time: ${schedule.startTime}", e)
-                            return@mapNotNull null
-                        }
-
-                        val endTime = try {
-                            LocalTime.parse(schedule.endTime)
-                        } catch (e: Exception) {
-                            Log.e("CalendarViewModel", "Error parsing end time: ${schedule.endTime}", e)
-                            return@mapNotNull null
-                        }
-
                         EventOccurrence(
-                            day = day,
-                            startTime = startTime,
-                            endTime = endTime
+                            day = DateTimeUtils.convertDayStringToDayOfWeek(schedule.day),
+                            startTime = LocalTime.parse(schedule.startTime),
+                            endTime = LocalTime.parse(schedule.endTime)
                         )
                     } catch (e: Exception) {
-                        Log.e("CalendarViewModel", "Error creating occurrence for schedule", e)
+                        Log.e("CalendarViewModel", "Error creating occurrence", e)
                         null
                     }
                 }
 
-                // Only create event if we have valid occurrences
                 if (occurrences.isNotEmpty()) {
-                    // Create a nice title that always includes the code
-                    val eventTitle = if (lecture.name.isNotBlank()) {
-                        "${lecture.code} - ${lecture.name}"
-                    } else {
-                        // Just use the code if name is empty
-                        lecture.code
-                    }
-
-                    Log.d("CalendarViewModel", "Adding event with title: $eventTitle")
-
+                    val eventTitle = "${lecture.code} - ${lecture.name}".takeIf { lecture.name.isNotBlank() } ?: lecture.code
                     val event = Event(
                         title = eventTitle,
                         occurrences = occurrences,
@@ -177,21 +176,39 @@ class CalendarViewModel @Inject constructor(
                         location = classroom.observations.takeIf { it.isNotBlank() },
                         importance = EventImportance.HIGH
                     )
-
                     eventRepository.addEvent(event)
                 } else {
-                    Log.w("CalendarViewModel", "No valid occurrences found for ${lecture.code}")
+                    Log.w("CalendarViewModel", "No valid occurrences for ${lecture.code}")
                 }
             } catch (e: Exception) {
-                Log.e("CalendarViewModel", "Error adding lecture event: ${lecture.code}", e)
+                Log.e("CalendarViewModel", "Error adding lecture event", e)
+            } finally {
+                onDialogDismiss()
             }
         }
     }
 
+    // --- Private Helpers ---
+
+    private fun recalculateDerivedState() {
+        val currentState = _uiState.value
+        val dailyTimeBlocks = EventProcessingUtil.processEventsIntoTimeBlocks(
+            events = currentState.events,
+            dayOfWeek = currentState.selectedDate.dayOfWeek,
+            startHour = 7,
+            endHour = 22
+        )
+        val monthGrid = DateTimeUtils.getDatesForMonthGrid(currentState.selectedMonth)
+        _uiState.update {
+            it.copy(
+                dailyViewTimeBlocks = dailyTimeBlocks,
+                daysInMonthGrid = monthGrid
+            )
+        }
+    }
+
     private fun getNextColor(): Color {
-        // Simple rotation through the available colors
-        val colorIndex = (events.value.size % eventColors.size)
+        val colorIndex = (_uiState.value.events.size % eventColors.size)
         return eventColors[colorIndex]
     }
 }
-

@@ -13,9 +13,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.data.model.Event
+import com.prototype.gradusp.data.model.EventOccurrence
+import com.prototype.gradusp.data.model.sampleEvents
 import com.prototype.gradusp.ui.components.EventCard
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
+import java.time.DayOfWeek
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 
@@ -91,5 +97,33 @@ fun TimeBlockDisplay(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Time Block With Event")
+@Composable
+fun TimeBlockDisplayWithEventPreview() {
+    val sampleEvent = sampleEvents.first()
+    val sampleOccurrence = sampleEvent.occurrences.first()
+    val timeBlock = TimeBlock(
+        startHour = 8,
+        endHour = 10,
+        events = listOf(Pair(sampleEvent, sampleOccurrence))
+    )
+    GRADUSPTheme {
+        TimeBlockDisplay(timeBlock = timeBlock, onClick = {})
+    }
+}
+
+@Preview(showBackground = true, name = "Time Block Empty")
+@Composable
+fun TimeBlockDisplayEmptyPreview() {
+    val timeBlock = TimeBlock(
+        startHour = 10,
+        endHour = 11,
+        events = emptyList()
+    )
+    GRADUSPTheme {
+        TimeBlockDisplay(timeBlock = timeBlock, onClick = {})
     }
 }

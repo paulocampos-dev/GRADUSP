@@ -25,7 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -118,5 +120,31 @@ fun DailyViewHeader(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Preview(showBackground = true, name = "Daily Header - Not Today")
+@Composable
+fun DailyViewHeaderPreview() {
+    GRADUSPTheme {
+        DailyViewHeader(
+            selectedDate = LocalDate.now().minusDays(3),
+            onPreviousDay = {},
+            onNextDay = {},
+            onTodayClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Daily Header - Today")
+@Composable
+fun DailyViewHeaderTodayPreview() {
+    GRADUSPTheme {
+        DailyViewHeader(
+            selectedDate = LocalDate.now(),
+            onPreviousDay = {},
+            onNextDay = {},
+            onTodayClick = {}
+        )
     }
 }

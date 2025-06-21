@@ -1,7 +1,5 @@
 package com.prototype.gradusp.ui.calendar.monthly
 
-import com.prototype.gradusp.data.model.Event
-
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,38 +12,24 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
-import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
-import com.prototype.gradusp.utils.DateTimeUtils
+import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.utils.EventProcessingUtil
-import com.prototype.gradusp.viewmodel.CalendarViewModel
 import java.time.LocalDate
+import java.time.YearMonth
 
 @Composable
 fun MonthlyView(
-    viewModel: CalendarViewModel
+    selectedMonth: YearMonth,
+    daysInGrid: List<LocalDate?>,
+    events: List<Event>,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onTodayClick: () -> Unit,
+    onDayClick: (LocalDate) -> Unit,
 ) {
-    // Observe view model states
-    val selectedMonth by viewModel.selectedMonth.collectAsState()
-    val events by viewModel.events.collectAsState()
-    var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
-    var selectedEvent by remember { mutableStateOf<Event?>(null) }
-
-    // Memoized grid cells computation
-    val daysInGrid by remember(selectedMonth) {
-        derivedStateOf {
-            DateTimeUtils.getDatesForMonthGrid(selectedMonth)
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -53,9 +37,9 @@ fun MonthlyView(
     ) {
         MonthNavigationHeader(
             currentMonth = selectedMonth,
-            onPreviousMonth = { viewModel.navigateToPreviousMonth() },
-            onNextMonth = { viewModel.navigateToNextMonth() },
-            onTodayClick = { viewModel.navigateToToday() }
+            onPreviousMonth = onPreviousMonth,
+            onNextMonth = onNextMonth,
+            onTodayClick = onTodayClick
         )
 
         WeekdaysHeader()
@@ -69,7 +53,6 @@ fun MonthlyView(
         ) {
             items(daysInGrid) { date ->
                 if (date != null) {
-                    // Filter events for this day (by matching the day-of-week)
                     val dayEvents = remember(events, date) {
                         EventProcessingUtil.getEventsForDate(date, events)
                     }
@@ -77,10 +60,9 @@ fun MonthlyView(
                     DayCell(
                         date = date,
                         dayEvents = dayEvents,
-                        onClick = { selectedDay = date }
+                        onClick = { onDayClick(date) }
                     )
                 } else {
-                    // Empty cell for padding.
                     Box(
                         modifier = Modifier
                             .padding(4.dp)
@@ -90,38 +72,5 @@ fun MonthlyView(
                 }
             }
         }
-    }
-
-    // When a day is selected, show the DayDetailsDialog.
-    selectedDay?.let { date ->
-        val dayEvents = remember(events, date) {
-            EventProcessingUtil.getEventsForDate(date, events)
-        }
-
-        DayDetailsDialog(
-            date = date,
-            events = dayEvents,
-            onDismiss = { selectedDay = null },
-            onEventClick = { event ->
-                selectedEvent = event
-                selectedDay = null
-            }
-        )
-    }
-
-    // Event details dialog
-    selectedEvent?.let { event ->
-        EventDetailsDialog(
-            event = event,
-            onDismiss = { selectedEvent = null },
-            onSave = { updatedEvent ->
-                viewModel.updateEvent(updatedEvent)
-                selectedEvent = null
-            },
-            onDelete = { eventToDelete ->
-                viewModel.deleteEvent(eventToDelete)
-                selectedEvent = null
-            }
-        )
     }
 }

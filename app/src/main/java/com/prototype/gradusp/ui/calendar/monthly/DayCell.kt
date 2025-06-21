@@ -24,8 +24,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.prototype.gradusp.data.model.Event
+import com.prototype.gradusp.data.model.sampleEvents
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.utils.AccessibilityUtils
 import com.prototype.gradusp.utils.DateTimeUtils
 import java.time.LocalDate
@@ -97,5 +100,29 @@ fun DayCell(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true, name = "Day Cell - Regular")
+@Composable
+fun DayCellPreview() {
+    GRADUSPTheme {
+        DayCell(date = LocalDate.of(2023, 10, 26), dayEvents = emptyList(), onClick = {})
+    }
+}
+
+@Preview(showBackground = true, name = "Day Cell - Today")
+@Composable
+fun DayCellTodayPreview() {
+    GRADUSPTheme {
+        DayCell(date = LocalDate.now(), dayEvents = sampleEvents.take(1), onClick = {})
+    }
+}
+
+@Preview(showBackground = true, name = "Day Cell - With Events")
+@Composable
+fun DayCellWithEventsPreview() {
+    GRADUSPTheme {
+        DayCell(date = LocalDate.of(2023, 10, 27), dayEvents = sampleEvents, onClick = {})
     }
 }

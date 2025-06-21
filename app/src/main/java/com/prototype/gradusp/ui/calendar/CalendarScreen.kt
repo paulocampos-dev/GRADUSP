@@ -1,7 +1,5 @@
 package com.prototype.gradusp.ui.calendar
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -14,30 +12,33 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
-import com.prototype.gradusp.data.AnimationSpeed
+import com.prototype.gradusp.data.model.Event
+import com.prototype.gradusp.data.model.Lecture
+import com.prototype.gradusp.data.model.Classroom
+import com.prototype.gradusp.data.model.sampleEvents
 import com.prototype.gradusp.ui.calendar.daily.DailyView
 import com.prototype.gradusp.ui.calendar.monthly.MonthlyView
 import com.prototype.gradusp.ui.calendar.weekly.WeeklyView
 import com.prototype.gradusp.ui.components.CalendarViewSelector
 import com.prototype.gradusp.ui.components.ExpandableFab
-import com.prototype.gradusp.ui.components.base.GraduspTitleBar
 import com.prototype.gradusp.ui.components.dialogs.AddEventDialog
 import com.prototype.gradusp.ui.components.dialogs.AddLectureDialog
+import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
+import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
+import com.prototype.gradusp.ui.theme.GRADUSPTheme
+import com.prototype.gradusp.utils.DateTimeUtils
+import com.prototype.gradusp.utils.EventProcessingUtil
 import com.prototype.gradusp.viewmodel.CalendarViewModel
-import com.prototype.gradusp.viewmodel.SettingsViewModel
+import java.time.LocalDate
+import java.time.YearMonth
 
 enum class CalendarView(val title: String, val contentDescription: String) {
     DAILY("Diário", "Visualização diária do calendário"),
@@ -45,77 +46,69 @@ enum class CalendarView(val title: String, val contentDescription: String) {
     MONTHLY("Mensal", "Visualização mensal do calendário")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
-    calendarViewModel: CalendarViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    viewModel: CalendarViewModel = hiltViewModel(),
 ) {
-    var selectedView by remember { mutableStateOf(CalendarView.WEEKLY) }
-    var showAddEventDialog by remember { mutableStateOf(false) }
-    var showAddLectureDialog by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
 
-    // Observe settings for animation configuration
-    val animationSpeed by settingsViewModel.animationSpeed.collectAsState(initial = AnimationSpeed.MÉDIA)
-    val invertSwipeDirection by settingsViewModel.invertSwipeDirection.collectAsState(initial = false)
+    CalendarScreenContent(
+        uiState = uiState,
+        onViewSelected = viewModel::onViewSelected,
+        onPreviousDay = viewModel::onPreviousDay,
+        onNextDay = viewModel::onNextDay,
+        onPreviousMonth = viewModel::onPreviousMonth,
+        onNextMonth = viewModel::onNextMonth,
+        onTodayClick = viewModel::onTodayClick,
+        onEventClick = viewModel::onEventClick,
+        onDayClick = viewModel::onDayClick,
+        onAddEventClick = viewModel::onAddEventClick,
+        onAddLectureClick = viewModel::onAddLectureClick,
+        onDialogDismiss = viewModel::onDialogDismiss,
+        onAddEvent = viewModel::addEvent,
+        onUpdateEvent = viewModel::updateEvent,
+        onDeleteEvent = viewModel::deleteEvent,
+        onAddLecture = viewModel::addLectureEvent
+    )
+}
 
-    // Track drag gesture for view switching
-    val dragModifier = Modifier.pointerInput(invertSwipeDirection) {
-        var totalDragAmount = 0f
-        var lastSwipeTime = 0L
-        val swipeCooldown = 500 // Cooldown in ms to prevent accidental multi-swipes
+@Composable
+private fun CalendarScreenContent(
+    uiState: CalendarUiState,
+    onViewSelected: (CalendarView) -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onTodayClick: () -> Unit,
+    onEventClick: (Event) -> Unit,
+    onDayClick: (LocalDate) -> Unit,
+    onAddEventClick: () -> Unit,
+    onAddLectureClick: () -> Unit,
+    onDialogDismiss: () -> Unit,
+    onAddEvent: (Event) -> Unit,
+    onUpdateEvent: (Event) -> Unit,
+    onDeleteEvent: (Event) -> Unit,
+    onAddLecture: (Lecture, Classroom) -> Unit
+) {
+    val dragModifier = Modifier.pointerInput(uiState.invertSwipeDirection) {
+        detectHorizontalDragGestures { _, dragAmount ->
+            val dragDirection = if (dragAmount > 0) -1 else 1
+            val effectiveDirection = if (uiState.invertSwipeDirection) -dragDirection else dragDirection
 
-        detectHorizontalDragGestures(
-            onDragStart = {
-                totalDragAmount = 0f
-            },
-            onDragEnd = {
-                // Reset total drag amount when drag ends
-                totalDragAmount = 0f
-            },
-            onDragCancel = {
-                // Reset total drag amount when drag is canceled
-                totalDragAmount = 0f
-            },
-            onHorizontalDrag = { _, dragAmount ->
-                val effectiveDragAmount = if (invertSwipeDirection) -dragAmount else dragAmount
+            val currentIndex = uiState.selectedView.ordinal
+            val newIndex = (currentIndex + effectiveDirection).coerceIn(0, CalendarView.entries.size - 1)
 
-                // Accumulate total drag distance for this gesture
-                totalDragAmount += dragAmount
-
-                // Require a more significant swipe (increased threshold)
-                val swipeThreshold = 40f // Increased from 5 to 40
-
-                val currentTime = System.currentTimeMillis()
-                val timeSinceLastSwipe = currentTime - lastSwipeTime
-
-                // Only process swipe if we've passed the threshold and cooldown period
-                if (Math.abs(totalDragAmount) > swipeThreshold && timeSinceLastSwipe > swipeCooldown) {
-                    // Determine swipe direction
-                    val dragDirection = if (totalDragAmount > 0) -1 else 1
-                    val effectiveDirection = if (invertSwipeDirection) -dragDirection else dragDirection
-
-                    // Calculate the new view index
-                    val currentIndex = selectedView.ordinal
-                    val newIndex = (currentIndex + effectiveDirection).coerceIn(0, CalendarView.values().size - 1)
-
-                    // Only update if we actually changed views
-                    if (newIndex != currentIndex) {
-                        selectedView = CalendarView.values()[newIndex]
-                        lastSwipeTime = currentTime
-                        totalDragAmount = 0f // Reset after processing
-                    }
-                }
+            if (newIndex != currentIndex) {
+                onViewSelected(CalendarView.entries[newIndex])
             }
-        )
+        }
     }
 
-    Column(modifier = Modifier.fillMaxSize()){
+    Column(modifier = Modifier.fillMaxSize()) {
         CalendarViewSelector(
-            selectedView = selectedView,
-            onViewSelected = { newView ->
-                selectedView = newView
-            }
+            selectedView = uiState.selectedView,
+            onViewSelected = onViewSelected
         )
 
         Box(
@@ -123,71 +116,132 @@ fun CalendarScreen(
                 .fillMaxSize()
                 .then(dragModifier)
         ) {
-            // Content area with animated transitions between views
             AnimatedContent(
-                targetState = selectedView,
+                targetState = uiState.selectedView,
+                label = "Calendar View Animation",
                 transitionSpec = {
-                    // Determine if we're moving forward or backward in the view sequence
                     val isForwardTransition = targetState.ordinal > initialState.ordinal
+                    val effectiveForward = if (uiState.invertSwipeDirection) !isForwardTransition else isForwardTransition
 
-                    // Apply inversion if the setting is enabled
-                    val effectiveForward =
-                        if (invertSwipeDirection) !isForwardTransition else isForwardTransition
-
-                    // Create the animation with the appropriate direction
                     val slideInDirection = if (effectiveForward) 1 else -1
                     val slideOutDirection = if (effectiveForward) -1 else 1
 
-                    // Animation setup with custom durations
-                    slideInHorizontally(
-                        animationSpec = tween(
-                            animationSpeed.transition,
-                            easing = FastOutSlowInEasing
-                        )
-                    ) { fullWidth -> slideInDirection * fullWidth } +
-                            fadeIn(tween(animationSpeed.transition)) togetherWith
-                            slideOutHorizontally(
-                                animationSpec = tween(
-                                    animationSpeed.transition,
-                                    easing = FastOutSlowInEasing
-                                )
-                            ) { fullWidth -> slideOutDirection * fullWidth } +
-                            fadeOut(tween(animationSpeed.transition))
+                    val offsetAnimationSpec = tween<IntOffset>(
+                        durationMillis = uiState.animationSpeed.transition,
+                        easing = FastOutSlowInEasing
+                    )
+                    val fadeAnimationSpec = tween<Float>(
+                        durationMillis = uiState.animationSpeed.transition,
+                        easing = FastOutSlowInEasing
+                    )
+
+                    slideInHorizontally(animationSpec = offsetAnimationSpec) { fullWidth -> slideInDirection * fullWidth } + fadeIn(fadeAnimationSpec) togetherWith
+                            slideOutHorizontally(animationSpec = offsetAnimationSpec) { fullWidth -> slideOutDirection * fullWidth } + fadeOut(fadeAnimationSpec)
                 }
             ) { targetView ->
                 when (targetView) {
-                    CalendarView.DAILY -> DailyView(calendarViewModel)
-                    CalendarView.WEEKLY -> WeeklyView(calendarViewModel)
-                    CalendarView.MONTHLY -> MonthlyView(calendarViewModel)
+                    CalendarView.DAILY -> DailyView(
+                        selectedDate = uiState.selectedDate,
+                        timeBlocks = uiState.dailyViewTimeBlocks,
+                        onPreviousDay = onPreviousDay,
+                        onNextDay = onNextDay,
+                        onTodayClick = onTodayClick,
+                        onEventClick = onEventClick
+                    )
+                    CalendarView.WEEKLY -> WeeklyView(
+                        events = uiState.events,
+                        onEventClick = onEventClick
+                    )
+                    CalendarView.MONTHLY -> MonthlyView(
+                        selectedMonth = uiState.selectedMonth,
+                        daysInGrid = uiState.daysInMonthGrid,
+                        events = uiState.events,
+                        onPreviousMonth = onPreviousMonth,
+                        onNextMonth = onNextMonth,
+                        onTodayClick = onTodayClick,
+                        onDayClick = onDayClick
+                    )
                 }
             }
 
             ExpandableFab(
-                onAddEvent = { showAddEventDialog = true },
-                onAddLecture = { showAddLectureDialog = true }
+                onAddEvent = onAddEventClick,
+                onAddLecture = onAddLectureClick
             )
         }
     }
 
-    // Add Event Dialog
-    if (showAddEventDialog) {
+    // --- Dialogs ---
+
+    if (uiState.showAddEventDialog) {
         AddEventDialog(
-            onDismiss = { showAddEventDialog = false },
-            onEventAdded = { event ->
-                calendarViewModel.addEvent(event)
-                showAddEventDialog = false
-            }
+            onDismiss = onDialogDismiss,
+            onEventAdded = onAddEvent
         )
     }
 
-    // Add Lecture Dialog
-    if (showAddLectureDialog) {
+    if (uiState.showAddLectureDialog) {
         AddLectureDialog(
-            onDismiss = { showAddLectureDialog = false },
-            onLectureSelected = { lecture, selectedClassroom ->
-                calendarViewModel.addLectureEvent(lecture, selectedClassroom)
-                showAddLectureDialog = false
-            }
+            onDismiss = onDialogDismiss,
+            onLectureSelected = onAddLecture
+        )
+    }
+
+    uiState.eventForDetailsDialog?.let { event ->
+        EventDetailsDialog(
+            event = event,
+            onDismiss = onDialogDismiss,
+            onSave = onUpdateEvent,
+            onDelete = onDeleteEvent
+        )
+    }
+
+    uiState.dateForDetailsDialog?.let { date ->
+        DayDetailsDialog(
+            date = date,
+            events = EventProcessingUtil.getEventsForDate(date, uiState.events),
+            onDismiss = onDialogDismiss,
+            onEventClick = { event -> onEventClick(event) }
+        )
+    }
+}
+
+
+@Preview(showBackground = true, name = "Calendar Screen - Weekly View")
+@Composable
+fun CalendarScreenPreview_Weekly() {
+    GRADUSPTheme {
+        CalendarScreenContent(
+            uiState = CalendarUiState(
+                selectedView = CalendarView.WEEKLY,
+                events = sampleEvents
+            ),
+            onViewSelected = {}, onPreviousDay = {}, onNextDay = {},
+            onPreviousMonth = {}, onNextMonth = {}, onTodayClick = {},
+            onEventClick = {}, onDayClick = {}, onAddEventClick = {},
+            onAddLectureClick = {}, onDialogDismiss = {}, onAddEvent = {},
+            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Calendar Screen - Monthly View")
+@Composable
+fun CalendarScreenPreview_Monthly() {
+    val month = YearMonth.of(2023, 10)
+    GRADUSPTheme {
+        CalendarScreenContent(
+            uiState = CalendarUiState(
+                selectedView = CalendarView.MONTHLY,
+                selectedMonth = month,
+                daysInMonthGrid = DateTimeUtils.getDatesForMonthGrid(month),
+                events = sampleEvents
+            ),
+            onViewSelected = {}, onPreviousDay = {}, onNextDay = {},
+            onPreviousMonth = {}, onNextMonth = {}, onTodayClick = {},
+            onEventClick = {}, onDayClick = {}, onAddEventClick = {},
+            onAddLectureClick = {}, onDialogDismiss = {}, onAddEvent = {},
+            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}
         )
     }
 }
