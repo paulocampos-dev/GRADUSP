@@ -17,8 +17,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.Lecture
@@ -39,6 +41,7 @@ import com.prototype.gradusp.utils.EventProcessingUtil
 import com.prototype.gradusp.viewmodel.CalendarViewModel
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.math.abs
 
 enum class CalendarView(val title: String, val contentDescription: String) {
     DAILY("Diário", "Visualização diária do calendário"),
@@ -92,46 +95,48 @@ private fun CalendarScreenContent(
     onAddLecture: (Lecture, Classroom) -> Unit
 ) {
 
-    val dragModifier = Modifier.pointerInput(uiState.invertSwipeDirection) {
+    val swipeThresholdPx = with(LocalDensity.current) { 100.dp.toPx()}
+
+    val dragModifier = Modifier.pointerInput(uiState.selectedView) {
         var totalDragAmount = 0f
-        var hasSwiped = false
-        var lastSwipeTime = 0L
-        val swipeCooldown = 500 // ms
-        val swipeThreshold = 100f
 
         detectHorizontalDragGestures(
+            // Reset the accumulated drag when a new gesture starts.
             onDragStart = {
                 totalDragAmount = 0f
-                hasSwiped = false
             },
-            onDragEnd = { totalDragAmount = 0f },
-            onDragCancel = { totalDragAmount = 0f },
-            onHorizontalDrag = { _, dragAmount ->
-                if (hasSwiped) return@detectHorizontalDragGestures
-
+            // Do nothing on cancel. The drag is simply discarded.
+            onDragCancel = {
+                totalDragAmount = 0f
+            },
+            // Accumulate the drag distance as the user's finger moves.
+            onHorizontalDrag = { change, dragAmount ->
+                change.consume() // Consume the event to prevent interference.
                 totalDragAmount += dragAmount
-                val currentTime = System.currentTimeMillis()
-
-                if (currentTime - lastSwipeTime > swipeCooldown && kotlin.math.abs(totalDragAmount) > swipeThreshold) {
+            },
+            // This is the key change: Make the decision only when the drag ends.
+            onDragEnd = {
+                if (abs(totalDragAmount) > swipeThresholdPx) {
+                    // Determine the direction of the swipe.
+                    // A positive totalDragAmount means the user swiped left-to-right.
+                    // A negative totalDragAmount means the user swiped right-to-left.
                     val direction = if (totalDragAmount > 0) -1 else 1
                     val effectiveDirection = if (uiState.invertSwipeDirection) -direction else direction
 
                     val currentIndex = uiState.selectedView.ordinal
-                    val newIndex = currentIndex + effectiveDirection
+                    val newIndex = (currentIndex + effectiveDirection)
+                        .coerceIn(0, CalendarView.entries.lastIndex) //
 
-                    // Only proceed if the new index is within valid bounds
-                    if (newIndex in 0 until CalendarView.entries.size) {
+                    // Only trigger if the index actually changes.
+                    if (newIndex != currentIndex) {
                         onViewSelected(CalendarView.entries[newIndex])
-                        lastSwipeTime = currentTime
-                        hasSwiped = true
                     }
-
-                    totalDragAmount = 0f
                 }
             }
         )
-    }
 
+
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         CalendarViewSelector(
