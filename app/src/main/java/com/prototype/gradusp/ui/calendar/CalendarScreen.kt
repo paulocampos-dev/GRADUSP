@@ -91,19 +91,47 @@ private fun CalendarScreenContent(
     onDeleteEvent: (Event) -> Unit,
     onAddLecture: (Lecture, Classroom) -> Unit
 ) {
+
     val dragModifier = Modifier.pointerInput(uiState.invertSwipeDirection) {
-        detectHorizontalDragGestures { _, dragAmount ->
-            val dragDirection = if (dragAmount > 0) -1 else 1
-            val effectiveDirection = if (uiState.invertSwipeDirection) -dragDirection else dragDirection
+        var totalDragAmount = 0f
+        var hasSwiped = false
+        var lastSwipeTime = 0L
+        val swipeCooldown = 500 // ms
+        val swipeThreshold = 100f
 
-            val currentIndex = uiState.selectedView.ordinal
-            val newIndex = (currentIndex + effectiveDirection).coerceIn(0, CalendarView.entries.size - 1)
+        detectHorizontalDragGestures(
+            onDragStart = {
+                totalDragAmount = 0f
+                hasSwiped = false
+            },
+            onDragEnd = { totalDragAmount = 0f },
+            onDragCancel = { totalDragAmount = 0f },
+            onHorizontalDrag = { _, dragAmount ->
+                if (hasSwiped) return@detectHorizontalDragGestures
 
-            if (newIndex != currentIndex) {
-                onViewSelected(CalendarView.entries[newIndex])
+                totalDragAmount += dragAmount
+                val currentTime = System.currentTimeMillis()
+
+                if (currentTime - lastSwipeTime > swipeCooldown && kotlin.math.abs(totalDragAmount) > swipeThreshold) {
+                    val direction = if (totalDragAmount > 0) -1 else 1
+                    val effectiveDirection = if (uiState.invertSwipeDirection) -direction else direction
+
+                    val currentIndex = uiState.selectedView.ordinal
+                    val newIndex = currentIndex + effectiveDirection
+
+                    // Only proceed if the new index is within valid bounds
+                    if (newIndex in 0 until CalendarView.entries.size) {
+                        onViewSelected(CalendarView.entries[newIndex])
+                        lastSwipeTime = currentTime
+                        hasSwiped = true
+                    }
+
+                    totalDragAmount = 0f
+                }
             }
-        }
+        )
     }
+
 
     Column(modifier = Modifier.fillMaxSize()) {
         CalendarViewSelector(

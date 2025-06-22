@@ -46,9 +46,9 @@ class SettingsViewModel @Inject constructor(
 
     private fun loadCampusData() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isUpdateInProgress = true) }
+            _uiState.update { it.copy(isLoadingCampusData = true) }
             val campusMap = uspDataRepository.getCampusUnits()
-            _uiState.update { it.copy(campusMap = campusMap, isUpdateInProgress = false) }
+            _uiState.update { it.copy(campusMap = campusMap, isLoadingCampusData = false) }
         }
     }
 
