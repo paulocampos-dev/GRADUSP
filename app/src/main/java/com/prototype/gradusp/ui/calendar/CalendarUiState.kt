@@ -28,4 +28,5 @@ data class CalendarUiState(
     // UI settings from other view models
     val animationSpeed: AnimationSpeed = AnimationSpeed.MÉDIA,
     val invertSwipeDirection: Boolean = false,
+    val needsUspData: Boolean = false
 )

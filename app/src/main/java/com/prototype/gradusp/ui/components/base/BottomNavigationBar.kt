@@ -33,7 +33,7 @@ fun BottomNavigationBar(navController: NavHostController) {
     ) {
         items.forEach { screen ->
             NavigationBarItem(
-                selected = currentRoute == screen.route,
+                selected = currentRoute?.startsWith(screen.route) ?: false,
                 onClick = {
                     if (currentRoute != screen.route) {
                         navController.navigate(screen.route) {

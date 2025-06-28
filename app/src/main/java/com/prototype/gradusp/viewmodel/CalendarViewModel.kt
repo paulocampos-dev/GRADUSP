@@ -20,12 +20,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
-import javax.inject.Inject
+import javax.inject.Inject 
 
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
@@ -43,7 +44,8 @@ class CalendarViewModel @Inject constructor(
                 eventRepository.events,
                 userPreferencesRepository.animationSpeedFlow,
                 userPreferencesRepository.invertSwipeDirectionFlow,
-            ) { events, animationSpeed, invertSwipe ->
+                userPreferencesRepository.selectedSchoolsFlow
+            ) { events, animationSpeed, invertSwipe, selectedSchools ->
                 // This block will be re-executed whenever any of the source flows emit a new value
                 val currentState = _uiState.value
                 val dailyTimeBlocks = EventProcessingUtil.processEventsIntoTimeBlocks(
@@ -59,7 +61,8 @@ class CalendarViewModel @Inject constructor(
                     animationSpeed = animationSpeed,
                     invertSwipeDirection = invertSwipe,
                     dailyViewTimeBlocks = dailyTimeBlocks,
-                    daysInMonthGrid = monthGrid
+                    daysInMonthGrid = monthGrid,
+                    needsUspData = selectedSchools.isEmpty()
                 )
             }.collect { newState ->
                 _uiState.value = newState

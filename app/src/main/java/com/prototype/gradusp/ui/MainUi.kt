@@ -26,10 +26,10 @@ fun MainUi(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val currentScreenTitle = when (currentRoute) {
-        Screen.Calendar.route -> "Calendário"
-        Screen.Grades.route -> "Notas"
-        Screen.Config.route -> "Configurações"
+    val currentScreenTitle = when {
+        currentRoute?.startsWith(Screen.Calendar.route) == true -> "Calendário"
+        currentRoute?.startsWith(Screen.Grades.route) == true -> "Notas"
+        currentRoute?.startsWith(Screen.Config.route) == true -> "Configurações"
         else -> "GRADUSP"
     }
 
@@ -48,7 +48,19 @@ fun MainUi(
             }
         }
     ) { padding ->
-        NavGraph(navController, padding)
+        NavGraph(
+            navHostController = navController,
+            padding = padding,
+            onNavigateToSettings = {
+                navController.navigate("${Screen.Config.route}?highlight=true") {
+                    popUpTo(navController.graph.startDestinationId) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        )
     }
 
     if (uiState.showWelcomeDialog) {

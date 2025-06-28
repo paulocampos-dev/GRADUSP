@@ -35,6 +35,7 @@ import com.prototype.gradusp.ui.components.dialogs.AddEventDialog
 import com.prototype.gradusp.ui.components.dialogs.AddLectureDialog
 import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
 import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
+import com.prototype.gradusp.ui.components.dialogs.UspDataNeededDialog
 import com.prototype.gradusp.ui.theme.GRADUSPTheme
 import com.prototype.gradusp.utils.DateTimeUtils
 import com.prototype.gradusp.utils.EventProcessingUtil
@@ -52,6 +53,7 @@ enum class CalendarView(val title: String, val contentDescription: String) {
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = hiltViewModel(),
+    onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -71,7 +73,8 @@ fun CalendarScreen(
         onAddEvent = viewModel::addEvent,
         onUpdateEvent = viewModel::updateEvent,
         onDeleteEvent = viewModel::deleteEvent,
-        onAddLecture = viewModel::addLectureEvent
+        onAddLecture = viewModel::addLectureEvent,
+        onNavigateToSettings = onNavigateToSettings
     )
 }
 
@@ -92,7 +95,8 @@ private fun CalendarScreenContent(
     onAddEvent: (Event) -> Unit,
     onUpdateEvent: (Event) -> Unit,
     onDeleteEvent: (Event) -> Unit,
-    onAddLecture: (Lecture, Classroom) -> Unit
+    onAddLecture: (Lecture, Classroom) -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
 
     val swipeThresholdPx = with(LocalDensity.current) { 100.dp.toPx()}
@@ -214,10 +218,20 @@ private fun CalendarScreenContent(
     }
 
     if (uiState.showAddLectureDialog) {
-        AddLectureDialog(
-            onDismiss = onDialogDismiss,
-            onLectureSelected = onAddLecture
-        )
+        if (uiState.needsUspData) {
+            UspDataNeededDialog(
+                onDismiss = onDialogDismiss,
+                onNavigateToSettings = {
+                    onDialogDismiss()
+                    onNavigateToSettings()
+                }
+            )
+        } else {
+            AddLectureDialog(
+                onDismiss = onDialogDismiss,
+                onLectureSelected = onAddLecture
+            )
+        }
     }
 
     uiState.eventForDetailsDialog?.let { event ->
@@ -253,7 +267,7 @@ fun CalendarScreenPreview_Weekly() {
             onPreviousMonth = {}, onNextMonth = {}, onTodayClick = {},
             onEventClick = {}, onDayClick = {}, onAddEventClick = {},
             onAddLectureClick = {}, onDialogDismiss = {}, onAddEvent = {},
-            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}
+            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}, onNavigateToSettings = {}
         )
     }
 }
@@ -274,7 +288,7 @@ fun CalendarScreenPreview_Monthly() {
             onPreviousMonth = {}, onNextMonth = {}, onTodayClick = {},
             onEventClick = {}, onDayClick = {}, onAddEventClick = {},
             onAddLectureClick = {}, onDialogDismiss = {}, onAddEvent = {},
-            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}
+            onUpdateEvent = {}, onDeleteEvent = {}, onAddLecture = { _, _ ->}, onNavigateToSettings = {}
         )
     }
 }
