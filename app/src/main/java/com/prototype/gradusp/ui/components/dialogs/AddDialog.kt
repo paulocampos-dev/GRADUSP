@@ -275,7 +275,6 @@ fun AddEventDialog(
 // Define dialog state
 enum class DialogState { SEARCH, SELECT_CLASSROOM }
 
-@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @Composable
 fun AddLectureDialog(
     onDismiss: () -> Unit,

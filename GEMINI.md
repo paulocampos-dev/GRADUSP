@@ -6,3 +6,4 @@ Technically, the application is built using a modern Android tech stack, featuri
 
 **Development Guidelines:**
 - When creating Composables, always include a `@Preview` annotation to facilitate UI development and testing.
+- Do not use `adb` to automatically run the app on the user's device.
