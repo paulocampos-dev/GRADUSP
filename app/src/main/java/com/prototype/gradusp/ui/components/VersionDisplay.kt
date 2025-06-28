@@ -17,10 +17,10 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun VersionDisplay(
-    versionName: String = "1.0.1",
+    modifier: Modifier = Modifier,
+    versionName: String = "1.0.0",
     versionCode: Int = 1,
-    isBeta: Boolean = true,
-    modifier: Modifier = Modifier
+    isBeta: Boolean = true
 ) {
     Row(
         modifier = modifier

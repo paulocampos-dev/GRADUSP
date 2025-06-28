@@ -144,6 +144,11 @@ fun EventDetailsDialog(
     var location by remember { mutableStateOf(event.location ?: "") }
     var notes by remember { mutableStateOf(event.notes ?: "") }
     var selectedColor by remember { mutableStateOf(event.color) }
+    var customSelectedColor by remember {
+        mutableStateOf(
+            if (event.color !in eventColors) event.color else Color.LightGray
+        )
+    }
     var occurrences by remember { mutableStateOf(event.occurrences) }
 
     var showColorPicker by remember { mutableStateOf(false) }
@@ -276,9 +281,31 @@ fun EventDetailsDialog(
                                     )
                                     .padding(4.dp)
                                     .clip(CircleShape)
-                                    .clickable { selectedColor = color }
+                                    .clickable {
+                                        selectedColor = color
+                                        customSelectedColor = Color.LightGray
+                                    }
                             )
                         }
+
+                        // Custom color display
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(customSelectedColor)
+                                .border(
+                                    width = if (selectedColor == customSelectedColor) 4.dp else 1.dp,
+                                    color = if (selectedColor == customSelectedColor)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        Color.Black.copy(alpha = 0.2f),
+                                    shape = CircleShape
+                                )
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .clickable { selectedColor = customSelectedColor }
+                        )
 
                         // Custom color button
                         Box(
@@ -357,6 +384,7 @@ fun EventDetailsDialog(
                 currentColor = selectedColor,
                 onColorSelected = {
                     selectedColor = it
+                    customSelectedColor = it
                     showColorPicker = false
                 },
                 onDismiss = { showColorPicker = false }
