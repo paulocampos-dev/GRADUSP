@@ -47,8 +47,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.prototype.gradusp.ad.AdViewModel
 import com.prototype.gradusp.data.model.Event
 import com.prototype.gradusp.data.model.eventColors
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import com.prototype.gradusp.ui.components.ScheduleSelector
 import com.prototype.gradusp.ui.components.base.DialogActions
 import com.prototype.gradusp.ui.components.base.GraduspDialog
@@ -57,6 +64,12 @@ import com.prototype.gradusp.ui.components.colorpicker.ColorPickerDialog
 import com.prototype.gradusp.ui.theme.GraduspShapes
 import com.prototype.gradusp.ui.theme.GraduspSpacing
 import com.prototype.gradusp.utils.DateTimeUtils
+
+fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 @Composable
 fun OccurrencesSection(event: Event) {
@@ -137,8 +150,10 @@ fun EventDetailsDialog(
     event: Event,
     onDismiss: () -> Unit,
     onSave: (Event) -> Unit,
-    onDelete: (Event) -> Unit
+    onDelete: (Event) -> Unit,
+    adViewModel: AdViewModel = hiltViewModel()
 ) {
+
     var title by remember { mutableStateOf(event.title) }
     var teacher by remember { mutableStateOf(event.teacher ?: "") }
     var location by remember { mutableStateOf(event.location ?: "") }
@@ -153,6 +168,10 @@ fun EventDetailsDialog(
 
     var showColorPicker by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showAdConfirmation by remember { mutableStateOf(false) }
+
+    val customColorClickCount by adViewModel.customColorClickCount.collectAsState()
+    val adsEnabled by adViewModel.adsEnabled.collectAsState()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -314,7 +333,14 @@ fun EventDetailsDialog(
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surface)
                                 .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
-                                .clickable { showColorPicker = true },
+                                .clickable {
+                                    adViewModel.incrementCustomColorClick()
+                                    if (adsEnabled && customColorClickCount % 6 == 0) {
+                                        showAdConfirmation = true
+                                    } else {
+                                        showColorPicker = true
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -389,6 +415,31 @@ fun EventDetailsDialog(
                 },
                 onDismiss = { showColorPicker = false }
             )
+        }
+
+        // Ad confirmation dialog
+        if (showAdConfirmation) {
+            val activity = LocalContext.current.findActivity()
+            if (activity != null) {
+                AdConfirmationDialog(
+                    onDismiss = { showAdConfirmation = false },
+                    onConfirmWatchAd = {
+                        adViewModel.showRewardedAd(
+                            activity = activity,
+                            onAdDismissed = { showAdConfirmation = false },
+                            onUserEarnedReward = { showColorPicker = true }
+                        )
+                    },
+                    onSkipAd = {
+                        showAdConfirmation = false
+                        showColorPicker = true
+                    }
+                )
+            } else {
+                // Handle the case where activity is null, e.g., log an error or show a toast
+                showAdConfirmation = false
+                showColorPicker = true
+            }
         }
     }
 

@@ -6,5 +6,6 @@ data class SettingsUiState(
     val lastUpdateTime: Long = 0L,
     val isUpdateInProgress: Boolean = false,
     val updateProgress: Float = 0f,
-    val updateResult: String? = null
+    val updateResult: String? = null,
+    val adsEnabled: Boolean = true
 )

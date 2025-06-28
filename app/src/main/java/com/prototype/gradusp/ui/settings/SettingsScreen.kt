@@ -42,7 +42,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.rememberUpdatedState
+import com.prototype.gradusp.ad.AdViewModel
 import com.prototype.gradusp.data.AnimationSpeed
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.prototype.gradusp.ui.components.VersionDisplay
 import com.prototype.gradusp.ui.components.config.SchoolSelectionModal
 import com.prototype.gradusp.ui.theme.GRADUSPTheme
@@ -54,6 +58,7 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
+    adViewModel: AdViewModel = hiltViewModel(),
     highlightUspData: Boolean = false,
     highlightSchoolSelection: Boolean = false
 ) {
@@ -61,16 +66,20 @@ fun SettingsScreen(
     val invertSwipe by viewModel.invertSwipeDirection.collectAsState(initial = false)
     val selectedSchools by viewModel.selectedSchools.collectAsState(initial = emptySet())
     val uiState by viewModel.uiState.collectAsState(initial = SettingsUiState())
+    val adsEnabled by adViewModel.adsEnabled.collectAsState()
 
     SettingsScreenContent(
         uiState = uiState,
         animationSpeed = animationSpeed,
         invertSwipe = invertSwipe,
         selectedSchools = selectedSchools,
+        adsEnabled = adsEnabled,
         onAnimationSpeedSelected = viewModel::updateAnimationSpeed,
         onInvertSwipeChange = viewModel::updateInvertSwipeDirection,
         onSelectedSchoolsChange = viewModel::updateSelectedSchools,
         onTriggerUspDataUpdate = viewModel::triggerUspDataUpdate,
+        onToggleAdsEnabled = adViewModel::toggleAdsEnabled,
+        onShowRewardedAd = adViewModel::showRewardedAd,
         highlightUspData = highlightUspData,
         highlightSchoolSelection = highlightSchoolSelection
     )
@@ -82,10 +91,13 @@ private fun SettingsScreenContent(
     animationSpeed: AnimationSpeed,
     invertSwipe: Boolean,
     selectedSchools: Set<String>,
+    adsEnabled: Boolean,
     onAnimationSpeedSelected: (AnimationSpeed) -> Unit,
     onInvertSwipeChange: (Boolean) -> Unit,
     onSelectedSchoolsChange: (Set<String>) -> Unit,
     onTriggerUspDataUpdate: () -> Unit,
+    onToggleAdsEnabled: (Boolean) -> Unit,
+    onShowRewardedAd: (Activity, () -> Unit, () -> Unit) -> Unit,
     highlightUspData: Boolean,
     highlightSchoolSelection: Boolean
 ) {
@@ -282,6 +294,28 @@ private fun SettingsScreenContent(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Ativar anúncios",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = adsEnabled,
+                onCheckedChange = onToggleAdsEnabled
+            )
+        }
+
+        Spacer(modifier = Modifier.padding(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.padding(16.dp))
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -292,7 +326,21 @@ private fun SettingsScreenContent(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("GRADUSP é um aplicativo gratuito e de código aberto. Se ele te ajuda, considere apoiar o desenvolvimento assistindo a um anúncio rápido.")
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { /* TODO */ }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                val context = LocalView.current.context
+                Button(
+                    onClick = {
+                        // Find the activity from the context
+                        var activity: Activity? = context as? Activity
+                        while (context is android.content.ContextWrapper && activity == null) {
+                            activity = (context as android.content.ContextWrapper).baseContext as? Activity
+                        }
+
+                        if (activity != null) {
+                            onShowRewardedAd(activity, {}, {})
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
                     Text("Assistir um anúncio para apoiar")
                 }
             }
@@ -368,8 +416,11 @@ fun SettingsScreenPreview() {
             onInvertSwipeChange = {},
             onSelectedSchoolsChange = {},
             onTriggerUspDataUpdate = {},
+            onToggleAdsEnabled = {},
+            onShowRewardedAd = { _, _, _ -> },
             highlightUspData = true,
-            highlightSchoolSelection = true
+            highlightSchoolSelection = true,
+            adsEnabled = true
         )
     }
 }
@@ -390,12 +441,18 @@ fun SettingsScreenUpdatingPreview() {
             animationSpeed = AnimationSpeed.RÁPIDO,
             invertSwipe = true,
             selectedSchools = emptySet(),
+            adsEnabled = true,
             onAnimationSpeedSelected = {},
             onInvertSwipeChange = {},
             onSelectedSchoolsChange = {},
             onTriggerUspDataUpdate = {},
+            onToggleAdsEnabled = {},
+            onShowRewardedAd = { _, _, _ -> },
             highlightUspData = false,
     	    highlightSchoolSelection = false
         )
     }
 }
+
+
+

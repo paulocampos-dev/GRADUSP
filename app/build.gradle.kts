@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     kapt(libs.dagger.hilt.android.compiler)
 
+    // Google Mobile Ads SDK
+    implementation("com.google.android.gms:play-services-ads:23.0.0")
+
     // parser
     implementation(libs.okhttp3.okhttp)
     implementation(libs.jsoup)
