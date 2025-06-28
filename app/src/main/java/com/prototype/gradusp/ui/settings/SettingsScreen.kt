@@ -316,32 +316,34 @@ private fun SettingsScreenContent(
         HorizontalDivider()
         Spacer(modifier = Modifier.padding(16.dp))
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Apoie o Desenvolvedor",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("GRADUSP é um aplicativo gratuito e de código aberto. Se ele te ajuda, considere apoiar o desenvolvimento assistindo a um anúncio rápido.")
-                Spacer(modifier = Modifier.height(16.dp))
-                val context = LocalView.current.context
-                Button(
-                    onClick = {
-                        // Find the activity from the context
-                        var activity: Activity? = context as? Activity
-                        while (context is android.content.ContextWrapper && activity == null) {
-                            activity = (context as android.content.ContextWrapper).baseContext as? Activity
-                        }
+        if (adsEnabled) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Apoie o Desenvolvedor",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("GRADUSP é um aplicativo gratuito e de código aberto. Se ele te ajuda, considere apoiar o desenvolvimento assistindo a um anúncio rápido.")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val context = LocalView.current.context
+                    Button(
+                        onClick = {
+                            // Find the activity from the context
+                            var activity: Activity? = context as? Activity
+                            while (context is android.content.ContextWrapper && activity == null) {
+                                activity = (context as android.content.ContextWrapper).baseContext as? Activity
+                            }
 
-                        if (activity != null) {
-                            onShowRewardedAd(activity, {}, {})
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Text("Assistir um anúncio para apoiar")
+                            if (activity != null) {
+                                onShowRewardedAd(activity, {}, {})
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Assistir um anúncio para apoiar")
+                    }
                 }
             }
         }

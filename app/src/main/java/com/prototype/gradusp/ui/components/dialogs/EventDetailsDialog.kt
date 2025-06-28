@@ -335,7 +335,7 @@ fun EventDetailsDialog(
                                 .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape)
                                 .clickable {
                                     adViewModel.incrementCustomColorClick()
-                                    if (adsEnabled && customColorClickCount % 6 == 0) {
+                                    if (adsEnabled && (customColorClickCount % 6 == 0)) {
                                         showAdConfirmation = true
                                     } else {
                                         showColorPicker = true
