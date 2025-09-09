@@ -2,6 +2,7 @@ package com.prototype.gradusp.data.parser
 
 import android.util.Log
 import com.prototype.gradusp.data.model.Classroom
+import com.prototype.gradusp.data.model.ClassroomType
 import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.model.Schedule
 import com.prototype.gradusp.data.model.VacancyInfo
@@ -304,9 +305,9 @@ class LecturePageParser(
     }
 
     private fun processLinkedClassrooms(classrooms: List<Classroom>): List<Classroom> {
-        val theoreticalClassrooms = classrooms.filter { it.type?.contains("Teórica") == true }
-        val practicalClassrooms = classrooms.filter { it.type?.contains("Prática") == true }
-        val standardClassrooms = classrooms.filter { it.type?.contains("Teórica") != true && it.type?.contains("Prática") != true }
+        val theoreticalClassrooms = classrooms.filter { it.type == ClassroomType.TEORICA }
+        val practicalClassrooms = classrooms.filter { it.type == ClassroomType.PRATICA }
+        val standardClassrooms = classrooms.filter { it.type != ClassroomType.TEORICA && it.type != ClassroomType.PRATICA }
 
         val result = mutableListOf<Classroom>()
         result.addAll(standardClassrooms)

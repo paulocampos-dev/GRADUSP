@@ -3,24 +3,20 @@ import com.android.build.api.dsl.Packaging
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("org.jetbrains.kotlin.kapt")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.dagger.hilt.android")
-}
-
-// Allow references to generated code
-kapt {
-    correctErrorTypes = true
+    id("com.google.devtools.ksp")
+    id("kotlin-kapt")
 }
 
 android {
-
     namespace = "com.prototype.gradusp"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.prototype.gradusp"
         minSdk = 35
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -42,16 +38,16 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
+
     buildFeatures {
         compose = true
         viewBinding = true
@@ -59,7 +55,6 @@ android {
 }
 
 dependencies {
-
     // data store
     implementation(libs.androidx.datastore.preferences)
 
@@ -73,13 +68,12 @@ dependencies {
     kapt(libs.dagger.hilt.android.compiler)
 
     // Google Mobile Ads SDK
-    implementation("com.google.android.gms:play-services-ads:23.0.0")
+    implementation(libs.play.services.ads)
 
     // parser
     implementation(libs.okhttp3.okhttp)
     implementation(libs.jsoup)
     implementation(libs.gson)
-
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

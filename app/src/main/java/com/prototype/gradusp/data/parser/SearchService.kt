@@ -260,7 +260,7 @@ class SearchService(
         }
     }
 
-    private fun applyCourseFilters(
+    private suspend fun applyCourseFilters(
         courses: List<Course>,
         filters: SearchFilters,
         query: String,
