@@ -32,7 +32,7 @@ import com.prototype.gradusp.ui.calendar.weekly.WeeklyView
 import com.prototype.gradusp.ui.components.CalendarViewSelector
 import com.prototype.gradusp.ui.components.ExpandableFab
 import com.prototype.gradusp.ui.components.dialogs.AddEventDialog
-import com.prototype.gradusp.ui.components.dialogs.AddLectureDialog
+import com.prototype.gradusp.ui.components.dialogs.EnhancedAddLectureDialog
 import com.prototype.gradusp.ui.components.dialogs.DayDetailsDialog
 import com.prototype.gradusp.ui.components.dialogs.EventDetailsDialog
 import com.prototype.gradusp.ui.components.dialogs.UspDataNeededDialog
@@ -227,7 +227,7 @@ private fun CalendarScreenContent(
                 }
             )
         } else {
-            AddLectureDialog(
+            EnhancedAddLectureDialog(
                 onDismiss = onDialogDismiss,
                 onLectureSelected = onAddLecture
             )

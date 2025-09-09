@@ -11,6 +11,7 @@ import com.prototype.gradusp.data.model.EventImportance
 import com.prototype.gradusp.data.model.EventOccurrence
 import com.prototype.gradusp.data.model.Lecture
 import com.prototype.gradusp.data.model.eventColors
+import com.prototype.gradusp.data.repository.EnhancedUspDataRepository
 import com.prototype.gradusp.data.repository.EventRepository
 import com.prototype.gradusp.ui.calendar.CalendarUiState
 import com.prototype.gradusp.ui.calendar.CalendarView
@@ -31,7 +32,8 @@ import javax.inject.Inject
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val eventRepository: EventRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val enhancedUspRepository: EnhancedUspDataRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CalendarUiState())
@@ -152,7 +154,11 @@ class CalendarViewModel @Inject constructor(
             try {
                 val validSchedules = classroom.schedules.filter { schedule ->
                     val dayString = schedule.day.lowercase().trim()
-                    !dayString.contains("horário") && (dayString.startsWith("seg") || dayString.startsWith("ter") || dayString.startsWith("qua") || dayString.startsWith("qui") || dayString.startsWith("sex") || dayString.startsWith("sab") || dayString.startsWith("sáb") || dayString.startsWith("dom"))
+                    !dayString.contains("horário") &&
+                    (dayString.startsWith("seg") || dayString.startsWith("ter") ||
+                     dayString.startsWith("qua") || dayString.startsWith("qui") ||
+                     dayString.startsWith("sex") || dayString.startsWith("sab") ||
+                     dayString.startsWith("sáb") || dayString.startsWith("dom"))
                 }
 
                 val occurrences = validSchedules.mapNotNull { schedule ->
@@ -188,6 +194,18 @@ class CalendarViewModel @Inject constructor(
             } finally {
                 onDialogDismiss()
             }
+        }
+    }
+
+    /**
+     * Enhanced method to get lecture details using the new repository
+     */
+    suspend fun getLectureDetails(code: String): Lecture? {
+        return try {
+            enhancedUspRepository.getLecture(code)
+        } catch (e: Exception) {
+            Log.e("CalendarViewModel", "Error getting lecture details", e)
+            null
         }
     }
 
