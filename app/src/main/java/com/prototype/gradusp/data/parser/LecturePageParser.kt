@@ -10,10 +10,11 @@ import org.jsoup.nodes.Element
 
 /**
  * Parses the HTML content of lecture and classroom pages from JupiterWeb.
+ * Enhanced with better error handling and data validation.
  */
 class LecturePageParser(
-    private val campusByUnit: Map<List<Int>, String>,
-    private val unitCodes: Map<String, String>
+    private val campusByUnit: Map<List<Int>, String> = emptyMap(),
+    private val unitCodes: Map<String, String> = emptyMap()
 ) {
 
     /**
@@ -25,110 +26,168 @@ class LecturePageParser(
         classroomsDocument: Document,
         lectureCode: String
     ): Lecture {
-        val lecture = parseLectureInfo(infoDocument, lectureCode)
-        val classrooms = parseClassrooms(classroomsDocument)
-        val processedClassrooms = processLinkedClassrooms(classrooms)
-        return lecture.copy(classrooms = processedClassrooms)
+        return try {
+            val lecture = parseLectureInfo(infoDocument, lectureCode)
+            val classrooms = parseClassrooms(classroomsDocument)
+            val processedClassrooms = processLinkedClassrooms(classrooms)
+            lecture.copy(classrooms = processedClassrooms)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing lecture $lectureCode", e)
+            // Return a basic lecture with just the code if parsing fails
+            Lecture(
+                code = lectureCode,
+                name = lectureCode,
+                unit = "",
+                department = "",
+                campus = "",
+                classrooms = emptyList()
+            )
+        }
     }
 
     private fun parseLectureInfo(document: Document, lectureCode: String): Lecture {
-        val tables = document.select("table")
+        return try {
+            val tables = document.select("table")
 
-        var unit = ""
-        var department = ""
-        var campus = ""
-        var name = ""
-        var objectives = ""
-        var summary = ""
-        var lectureCredits = 0
-        var workCredits = 0
+            val lectureData = parseLectureTables(tables, lectureCode)
+            val campus = determineCampus(lectureData.unit)
+
+            Lecture(
+                code = lectureCode,
+                name = lectureData.name.ifBlank { lectureCode },
+                unit = lectureData.unit,
+                department = lectureData.department,
+                campus = campus,
+                objectives = lectureData.objectives,
+                summary = lectureData.summary,
+                lectureCredits = lectureData.lectureCredits,
+                workCredits = lectureData.workCredits
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing lecture info for $lectureCode", e)
+            Lecture(
+                code = lectureCode,
+                name = lectureCode,
+                unit = "",
+                department = "",
+                campus = "",
+                objectives = "",
+                summary = "",
+                lectureCredits = 0,
+                workCredits = 0
+            )
+        }
+    }
+
+    private data class LectureData(
+        var unit: String = "",
+        var department: String = "",
+        var name: String = "",
+        var objectives: String = "",
+        var summary: String = "",
+        var lectureCredits: Int = 0,
+        var workCredits: Int = 0
+    )
+
+    private fun parseLectureTables(tables: org.jsoup.select.Elements, lectureCode: String): LectureData {
+        val data = LectureData()
 
         tables.forEach { table ->
             val headerText = table.text()
 
-            // Parse header info
-            if (headerText.contains("Disciplina:")) {
-                val rows = table.select("tr")
-                if (rows.size >= 3) {
-                    unit = rows[0].text().trim()
-                    department = rows[1].text().trim()
-
-                    // Determine campus from unit code
-                    val unitCodeInt = unitCodes[unit]?.toIntOrNull() ?: 0
-                    campus = if (unitCodeInt > 0) {
-                        campusByUnit.entries.find { (codes, _) ->
-                            codes.contains(unitCodeInt)
-                        }?.value ?: "Outro"
-                    } else {
-                        "Outro"
-                    }
-
-                    // More robust approach to extract the discipline name
-                    for (i in 0 until rows.size) {
-                        val row = rows[i]
-                        val rowText = row.text().trim()
-                        if (rowText.contains("Disciplina:")) {
-                            val disciplineMatch = Regex("Disciplina:\\s+([A-Z0-9]{7})\\s+-\\s+(.+)").find(rowText)
-                            if (disciplineMatch != null) {
-                                name = disciplineMatch.groupValues[2].trim()
-                            } else {
-                                val parts = rowText.split("-")
-                                if (parts.size > 1 && parts[0].contains(lectureCode)) {
-                                    name = parts.drop(1).joinToString("-").trim()
-                                } else {
-                                    name = rowText.substringAfter("Disciplina:").trim()
-                                    if (name.contains(lectureCode)) {
-                                        name = name.substringAfter(lectureCode).trim()
-                                        if (name.startsWith("-")) {
-                                            name = name.substring(1).trim()
-                                        }
-                                    }
-                                }
-                            }
-                            break
-                        }
-                    }
-
-                    if (name.isBlank()) {
-                        name = lectureCode
-                    }
-                }
-            }
-            // Parse objectives
-            else if (headerText.startsWith("Objetivos")) {
-                objectives = table.select("tr").getOrNull(1)?.text()?.trim() ?: ""
-            }
-            // Parse program summary
-            else if (headerText.startsWith("Programa Resumido")) {
-                summary = table.select("tr").getOrNull(1)?.text()?.trim() ?: ""
-            }
-            // Parse credits
-            else if (headerText.contains("Créditos Aula")) {
-                table.select("tr").forEach { row ->
-                    val cells = row.select("td")
-                    if (cells.size >= 2) {
-                        val cellText = cells[0].text().trim()
-                        if (cellText.contains("Créditos Aula")) {
-                            lectureCredits = cells[1].text().trim().toIntOrNull() ?: 0
-                        } else if (cellText.contains("Créditos Trabalho")) {
-                            workCredits = cells[1].text().trim().toIntOrNull() ?: 0
-                        }
-                    }
-                }
+            when {
+                headerText.contains("Disciplina:") -> parseDisciplineInfo(table, lectureCode, data)
+                headerText.startsWith("Objetivos") -> data.objectives = parseTableContent(table)
+                headerText.startsWith("Programa Resumido") -> data.summary = parseTableContent(table)
+                headerText.contains("Créditos Aula") -> parseCredits(table, data)
             }
         }
 
-        return Lecture(
-            code = lectureCode,
-            name = name,
-            unit = unit,
-            department = department,
-            campus = campus,
-            objectives = objectives,
-            summary = summary,
-            lectureCredits = lectureCredits,
-            workCredits = workCredits
-        )
+        return data
+    }
+
+    private fun parseDisciplineInfo(table: Element, lectureCode: String, data: LectureData) {
+        try {
+            val rows = table.select("tr")
+            if (rows.size >= 2) {
+                data.unit = rows[0].text().trim()
+                data.department = rows[1].text().trim()
+                data.name = extractDisciplineName(rows, lectureCode)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error parsing discipline info", e)
+        }
+    }
+
+    private fun extractDisciplineName(rows: org.jsoup.select.Elements, lectureCode: String): String {
+        for (row in rows) {
+            val rowText = row.text().trim()
+            if (rowText.contains("Disciplina:")) {
+                val disciplineMatch = Regex("Disciplina:\\s+([A-Z0-9]{7})\\s+-\\s+(.+)").find(rowText)
+                if (disciplineMatch != null) {
+                    return disciplineMatch.groupValues[2].trim()
+                }
+
+                val parts = rowText.split("-")
+                if (parts.size > 1 && parts[0].contains(lectureCode)) {
+                    return parts.drop(1).joinToString("-").trim()
+                }
+
+                var name = rowText.substringAfter("Disciplina:").trim()
+                if (name.contains(lectureCode)) {
+                    name = name.substringAfter(lectureCode).trim()
+                    if (name.startsWith("-")) {
+                        name = name.substring(1).trim()
+                    }
+                }
+                return name
+            }
+        }
+        return ""
+    }
+
+    private fun parseTableContent(table: Element): String {
+        return try {
+            table.select("tr").getOrNull(1)?.text()?.trim() ?: ""
+        } catch (e: Exception) {
+            Log.w(TAG, "Error parsing table content", e)
+            ""
+        }
+    }
+
+    private fun parseCredits(table: Element, data: LectureData) {
+        try {
+            table.select("tr").forEach { row ->
+                val cells = row.select("td")
+                if (cells.size >= 2) {
+                    val cellText = cells[0].text().trim()
+                    val value = cells[1].text().trim().toIntOrNull() ?: 0
+
+                    when {
+                        cellText.contains("Créditos Aula") -> data.lectureCredits = value
+                        cellText.contains("Créditos Trabalho") -> data.workCredits = value
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error parsing credits", e)
+        }
+    }
+
+    private fun determineCampus(unitName: String): String {
+        return try {
+            val unitCodeInt = unitCodes[unitName]?.toIntOrNull() ?: 0
+            if (unitCodeInt > 0) {
+                campusByUnit.entries.find { (codes, _) ->
+                    codes.contains(unitCodeInt)
+                }?.value ?: "Outro"
+            } else {
+                "Outro"
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error determining campus for unit $unitName", e)
+            "Outro"
+        }
     }
 
     private fun parseClassrooms(document: Document): List<Classroom> {
