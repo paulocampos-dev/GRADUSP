@@ -50,11 +50,9 @@ data class Course(
      * Calculates total credits for the course
      */
     fun calculateTotalCredits(): Int {
-        return periods.values.flatten().sumOf { lecture ->
-            // This would need to be calculated based on lecture credits
-            // For now, return the stored value
-            0
-        }
+        // Sums the credits of all lectures across all periods.
+        // Assumes that each LectureInfo object has a `credits` property.
+        return periods.values.flatten().sumOf { it.credits }
     }
 }
 

@@ -102,7 +102,7 @@ class SearchService(
                 }
             }
 
-            val filteredCourses = applyCourseFilters(allCourses, filters, query)
+            val filteredCourses = applyCourseFilters(allCourses, filters, query, units)
             val rankedResults = rankCourseResults(filteredCourses, query)
 
             if (includeCurriculum) {
@@ -140,7 +140,7 @@ class SearchService(
             val filteredCandidates = applyFilters(candidateLectures, filters, query)
 
             val nonConflicting = filteredCandidates.filter { candidate ->
-                !conflictsWithAny(existingLectures, candidate.item)
+                !conflictsWithAny(existingLectures, candidate)
             }
 
             rankResults(nonConflicting, query)
@@ -263,14 +263,15 @@ class SearchService(
     private fun applyCourseFilters(
         courses: List<Course>,
         filters: SearchFilters,
-        query: String
+        query: String,
+        units: Map<String, List<String>>
     ): List<Course> {
         return courses.filter { course ->
             // Campus filter via unit lookup
             if (filters.campus != null) {
                 val unitCode = parser.getUnitCode(course.unit)
-                val campus = parser.fetchCampusUnits().entries.find { (_, units) ->
-                    units.contains(course.unit)
+                val campus = units.entries.find { (_, unitList) ->
+                    unitList.contains(course.unit)
                 }?.key
 
                 if (campus != filters.campus) return@filter false

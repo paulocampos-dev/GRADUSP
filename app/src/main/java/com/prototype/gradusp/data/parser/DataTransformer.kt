@@ -67,7 +67,8 @@ class DataTransformer {
                 teachers = classroom.teachers.map { validateAndNormalizeName(it) },
                 schedules = classroom.schedules.map { transformSchedule(it) },
                 vacancies = transformVacancies(classroom.vacancies),
-                type = classroom.type?.let { validateAndNormalizeText(it) },
+//                type = classroom.type?.let { validateAndNormalizeText(it) },
+                type = classroom.type,
                 theoreticalCode = classroom.theoreticalCode?.let { validateAndNormalizeCode(it) }
             )
         } catch (e: Exception) {
@@ -159,20 +160,11 @@ class DataTransformer {
     private fun transformLectureInfo(lectureInfo: LectureInfo): LectureInfo {
         return lectureInfo.copy(
             code = validateAndNormalizeCode(lectureInfo.code),
-            type = validateLectureType(lectureInfo.type),
+            type = lectureInfo.type, // LectureType enum is already validated
             reqWeak = lectureInfo.reqWeak.map { validateAndNormalizeCode(it) },
             reqStrong = lectureInfo.reqStrong.map { validateAndNormalizeCode(it) },
             indConjunto = lectureInfo.indConjunto.map { validateAndNormalizeCode(it) }
         )
-    }
-
-    private fun validateLectureType(type: String): String {
-        return when (type.lowercase()) {
-            "obrigatoria", "obrigatória" -> "obrigatoria"
-            "optativa_eletiva", "optativa eletiva" -> "optativa_eletiva"
-            "optativa_livre", "optativa livre" -> "optativa_livre"
-            else -> type
-        }
     }
 
     private fun transformVacancies(vacancies: Map<String, VacancyInfo>): Map<String, VacancyInfo> {

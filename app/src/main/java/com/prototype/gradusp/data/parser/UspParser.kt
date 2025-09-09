@@ -36,7 +36,7 @@ class UspParser(
     private val unitCodes = mutableMapOf<String, String>()
 
     private val lecturePageParser = LecturePageParser(campusByUnit, unitCodes)
-    private val coursePageParser = CoursePageParser(unitCodes)
+    private val coursePageParser = CoursePageParser()
 
     companion object {
         private val DISCIPLINE_REGEX = Regex("sgldis=([A-Z0-9]+)")

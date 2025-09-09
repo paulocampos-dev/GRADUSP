@@ -3,6 +3,7 @@ package com.prototype.gradusp.data.parser
 import android.util.Log
 import com.prototype.gradusp.data.model.Course
 import com.prototype.gradusp.data.model.LectureInfo
+import com.prototype.gradusp.data.model.LectureType
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -66,11 +67,10 @@ class CoursePageParser {
 
     private fun extractPeriods(document: Document): Map<String, List<LectureInfo>> {
         return try {
-            val periods = mutableMapOf<String, MutableList<LectureInfo>>()
-            document.select("table")
+            val table = document.select("table")
                 .firstOrNull { it.text().contains("Disciplinas Obrigatórias") }
-                ?.let { periods.putAll(parsePeriods(it)) }
-            periods
+
+            table?.let { parsePeriods(it) } ?: emptyMap()
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting periods from document", e)
             emptyMap()
@@ -109,7 +109,7 @@ class CoursePageParser {
                 parseLectureRow(row, periods, currentPeriod, currentType)
             }
 
-            periods.mapValues { it.value.toList() }
+            return periods.mapValues { it.value.toList() }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing periods from table", e)
             emptyMap()
@@ -132,7 +132,13 @@ class CoursePageParser {
             when {
                 // New lecture entry (7-character code)
                 firstCellText.length == 7 && firstCellText.matches(Regex("[A-Z0-9]{7}")) -> {
-                    periods[currentPeriod]?.add(LectureInfo(code = firstCellText, type = currentType))
+                    val lectureType = when (currentType) {
+                        "obrigatoria" -> LectureType.OBRIGATORIA
+                        "optativa_eletiva" -> LectureType.OPTATIVA_ELETIVA
+                        "optativa_livre" -> LectureType.OPTATIVA_LIVRE
+                        else -> LectureType.OPTATIVA_LIVRE
+                    }
+                    periods[currentPeriod]?.add(LectureInfo(code = firstCellText, type = lectureType))
                 }
 
                 // Prerequisite information

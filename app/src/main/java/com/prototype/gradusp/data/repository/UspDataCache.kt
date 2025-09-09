@@ -48,8 +48,8 @@ class UspDataCache(private val context: Context) {
 
     private data class CacheMetadata(
         val version: Int = CACHE_VERSION,
-        val lastCleanup: Long = System.currentTimeMillis(),
-        val totalSize: Long = 0L,
+        var lastCleanup: Long = System.currentTimeMillis(),
+        var totalSize: Long = 0L,
         val entries: MutableMap<String, CacheEntryInfo> = mutableMapOf()
     )
 
@@ -58,8 +58,8 @@ class UspDataCache(private val context: Context) {
         val type: CacheType,
         val timestamp: Long,
         val size: Long,
-        val accessCount: Int = 0,
-        val lastAccess: Long = System.currentTimeMillis()
+        var accessCount: Int = 0,
+        var lastAccess: Long = System.currentTimeMillis()
     )
 
     private enum class CacheType {

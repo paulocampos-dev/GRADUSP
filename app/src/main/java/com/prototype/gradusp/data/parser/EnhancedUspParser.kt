@@ -183,7 +183,7 @@ class EnhancedUspParser(
     /**
      * Gets unit code from unit name
      */
-    fun getUnitCode(unitName: String): String? {
+    suspend fun getUnitCode(unitName: String): String? {
         return jupiterCrawler.fetchUnits().getOrNull()?.get(unitName)
     }
 

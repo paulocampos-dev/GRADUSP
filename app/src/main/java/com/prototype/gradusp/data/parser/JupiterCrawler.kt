@@ -181,6 +181,10 @@ class JupiterCrawler(
             val document = fetchDocument(url) ?: return@withContext CrawlerResult.Error("Failed to fetch curriculum document")
 
             val course = coursePageParser.parse(document, url, "")
+            if (course == null) {
+                return@withContext CrawlerResult.Error("Failed to parse curriculum data")
+            }
+
             CrawlerResult.Success(course)
         } catch (e: Exception) {
             Log.e(tag, "Error fetching curriculum for course $courseCode", e)

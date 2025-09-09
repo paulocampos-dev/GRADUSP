@@ -17,6 +17,10 @@ class LecturePageParser(
     private val unitCodes: Map<String, String> = emptyMap()
 ) {
 
+    companion object {
+        private const val TAG = "LecturePageParser"
+    }
+
     /**
      * Main entry point to parse a lecture.
      * It takes the HTML documents for the lecture info page and the classrooms page.
@@ -231,7 +235,7 @@ class LecturePageParser(
                     label.contains("Início") -> builder.startDate = value
                     label.contains("Fim") -> builder.endDate = value
                     label.contains("Observações") -> builder.observations = value
-                    label.contains("Tipo da Turma") -> builder.type = value
+                    label.contains("Tipo da Turma") -> builder.type = ClassroomType.fromString(value)
                 }
             }
         }
@@ -320,7 +324,7 @@ class LecturePageParser(
                     teachers = (theoretical.teachers + practical.teachers).distinct(),
                     schedules = theoretical.schedules + practical.schedules,
                     vacancies = practical.vacancies,
-                    type = "Teórica+Prática",
+                    type = ClassroomType.TEORICA_PRATICA,
                     theoreticalCode = null
                 )
                 result.add(combined)
@@ -338,7 +342,7 @@ class LecturePageParser(
         var startDate: String = "",
         var endDate: String = "",
         var observations: String = "",
-        var type: String? = null,
+        var type: ClassroomType? = null,
         var theoreticalCode: String? = null,
         val schedules: MutableList<Schedule> = mutableListOf(),
         val vacancies: MutableMap<String, VacancyInfo> = mutableMapOf()
